@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Данные</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="nav"></div>
+  <main>
+    <div class="card">
+      <h1 id="data-h1"></h1>
+      <p><small id="data-desc" class="muted"></small></p>
+    </div>
+    <div class="card">
+  <h2 id="data-import-h2"></h2>
+  <div class="row">
+    <button id="exportBtn">Export JSON</button>
+    <input id="importFile" type="file" accept="application/json" />
+    <button id="importBtn">Import JSON</button>
+  </div>
+  <div id="importExportStatus" style="margin-top:10px;"></div>
+</div>
+
+    <div class="list">
+      <div class="card">
+        <h2 id="data-classes-h2"></h2>
+        <div class="row">
+          <input id="className" placeholder="" style="min-width:240px;" />
+          <select id="classRarity"></select>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <label class="row" style="gap:8px;"><input id="classCanAscend" type="checkbox" /> Ascend</label>
+          <label class="row" style="gap:8px;"><input id="classCanElevate" type="checkbox" /> Elevate</label>
+          <button id="addClassBtn"></button>
+          <button id="cancelClassBtn" style="display:none; background:var(--bg);"></button>
+        </div>
+        <input id="searchClasses" style="width:100%; margin-top:12px; box-sizing:border-box;" />
+        <div id="classesList" style="margin-top:8px; max-height:350px; overflow-y:auto; padding-right:8px;"></div>
+      </div>
+
+      <div class="card">
+        <h2 id="data-ags-h2"></h2>
+        <div class="row">
+          <input id="agName" placeholder="" style="min-width:240px;" />
+          <select id="agRarity"></select>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <label class="row" style="gap:8px;"><input id="agCanMeld" type="checkbox" /> Meld</label>
+          <label class="row" style="gap:8px;"><input id="agCanElevate" type="checkbox" /> Elevate</label>
+          <label class="row" style="gap:8px;"><input id="agCanSpir" type="checkbox" /> Spiritualize</label>
+          <button id="addAgBtn"></button>
+          <button id="cancelAgBtn" style="display:none; background:var(--bg);"></button>
+        </div>
+        <input id="searchAgathions" style="width:100%; margin-top:12px; box-sizing:border-box;" />
+        <div id="agList" style="margin-top:8px; max-height:350px; overflow-y:auto; padding-right:8px;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="data-cols-h2"></h2>
+
+      <div class="row">
+        <input id="colName" placeholder="" style="min-width:280px;" />
+      </div>
+
+      <p><small id="data-bonus-desc" class="muted"></small></p>
+      <textarea id="colBonus">{}</textarea>
+
+      <hr />
+      <h3 id="data-reqs-h3" style="margin:0 0 10px 0;"></h3>
+
+      <div class="row">
+        <select id="reqType">
+          <option value="class">class</option>
+          <option value="agathion">agathion</option>
+        </select>
+      <input id="reqSearch" placeholder="Поиск по имени..." style="width:140px;" />
+        <select id="reqId"></select>
+
+        <div id="reqFieldsClass" class="row" style="gap:8px;">
+          <span class="pill">min Ascend</span>
+          <input id="minClassAsc" type="number" min="0" step="1" value="0" style="width:90px;" />
+          <span class="pill">min Elevate</span>
+          <input id="minClassElv" type="number" min="0" step="1" value="0" style="width:90px;" />
+        </div>
+
+        <div id="reqFieldsAg" class="row" style="gap:8px; display:none;">
+          <span class="pill">min Meld</span>
+          <input id="minAgMeld" type="number" min="0" step="1" value="0" style="width:90px;" />
+          <span class="pill">min Elevate</span>
+          <input id="minAgElv" type="number" min="0" step="1" value="0" style="width:90px;" />
+          <span class="pill">min Spiritualize</span>
+          <input id="minAgSp" type="number" min="0" step="1" value="0" style="width:110px;" />
+        </div>
+
+        <button id="addReqBtn"></button>
+      </div>
+
+      <div id="reqList" style="margin-top:12px;"></div>
+
+      <hr />
+      <div class="row">
+        <button id="createColBtn"></button>
+        <button id="cancelColBtn" style="display:none; background:var(--bg);"></button>
+        <button id="refreshColsBtn"></button>
+      </div>
+
+      <input id="searchCollections" style="width:100%; margin-top:12px; box-sizing:border-box;" />
+      <div id="colsList" style="margin-top:8px; max-height:500px; overflow-y:auto; padding-right:8px;"></div>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script>
+    let metaCache = null;
+    let cache = { classes: [], agathions: [], reqs: [], collections: [] };
+    let editState = { classId: null, agId: null, colId: null };
+
+    function reqPreview(r) {
+      if (r.req_type === "class") {
+        return `${t("class")} #${r.req_id} (${t("Ascend")}>=${r.min_class_ascend}, ${t("Elevate")}>=${r.min_class_elevate})`;
+      }
+      return `${t("agathion")} #${r.req_id} (${t("Meld")}>=${r.min_ag_meld}, ${t("Elevate")}>=${r.min_ag_elevate}, ${t("Spiritualize")}>=${r.min_ag_spiritualize})`;
+    }
+
+    function renderReqs() {
+      const el = document.getElementById("reqList");
+      if (cache.reqs.length === 0) {
+        el.innerHTML = `<small class="muted">${t("No requirements yet")}</small>`;
+        return;
+      }
+      el.innerHTML = cache.reqs.map((r, idx) => `
+        <div class="row" style="justify-content:space-between; border:1px solid #1f2a37; border-radius:12px; padding:10px; margin-bottom:8px;">
+          <div>${reqPreview(r)}</div>
+          <button onclick="removeReq(${idx})">${t("Remove")}</button>
+        </div>
+      `).join("");
+    }
+
+    window.removeReq = (idx) => {
+      cache.reqs.splice(idx, 1);
+      renderReqs();
+    };
+
+    function renderClasses(items) {
+      if (!items.length) return `<small class="muted">${t("Empty")}</small>`;
+      return items.map(i => `
+        <div class="row" style="justify-content:space-between; border:1px solid #1f2a37; border-radius:12px; padding:10px; margin-bottom:8px;">
+          <div>
+            ${escapeHtml(t(i.name))} <span class="pill">${escapeHtml(t(i.rarity))}</span> <span class="pill">#${i.id}</span>
+            ${i.can_ascend ? `<span class="pill">${t("Ascend")}</span>` : ``}
+            ${i.can_elevate ? `<span class="pill">${t("Elevate")}</span>` : ``}
+          </div>
+          <div class="row" style="gap:6px;">
+            <button onclick="editClass(${i.id})">${t("Edit")}</button>
+            <button onclick="delClass(${i.id})">${t("Delete")}</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderAgathions(items) {
+      if (!items.length) return `<small class="muted">${t("Empty")}</small>`;
+      return items.map(i => `
+        <div class="row" style="justify-content:space-between; border:1px solid #1f2a37; border-radius:12px; padding:10px; margin-bottom:8px;">
+          <div>
+            ${escapeHtml(t(i.name))} <span class="pill">${escapeHtml(t(i.rarity))}</span> <span class="pill">#${i.id}</span>
+            ${i.can_meld ? `<span class="pill">${t("Meld")}</span>` : ``}
+            ${i.can_elevate ? `<span class="pill">${t("Elevate")}</span>` : ``}
+            ${i.can_spiritualize ? `<span class="pill">${t("Spiritualize")}</span>` : ``}
+          </div>
+          <div class="row" style="gap:6px;">
+            <button onclick="editAg(${i.id})">${t("Edit")}</button>
+            <button onclick="delAg(${i.id})">${t("Delete")}</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function updateClassesView() {
+      const q = document.getElementById("searchClasses").value.toLowerCase().trim();
+      let items = cache.classes;
+      if (q) items = items.filter(i => t(i.name).toLowerCase().includes(q) || i.name.toLowerCase().includes(q));
+      document.getElementById("classesList").innerHTML = renderClasses(items);
+    }
+
+    function updateAgathionsView() {
+      const q = document.getElementById("searchAgathions").value.toLowerCase().trim();
+      let items = cache.agathions;
+      if (q) items = items.filter(i => t(i.name).toLowerCase().includes(q) || i.name.toLowerCase().includes(q));
+      document.getElementById("agList").innerHTML = renderAgathions(items);
+    }
+
+    window.delClass = async (id) => { await apiSend(`/api/classes/${id}`, "DELETE"); await refreshAll(); };
+    window.delAg = async (id) => { await apiSend(`/api/agathions/${id}`, "DELETE"); await refreshAll(); };
+    window.delCollection = async (id) => { await apiSend(`/api/collections/${id}`, "DELETE"); await fetchCollections(); };
+
+    window.editClass = (id) => {
+      const c = cache.classes.find(x => x.id === id);
+      if(!c) return;
+      editState.classId = id;
+      document.getElementById("className").value = c.name;
+      document.getElementById("classRarity").value = c.rarity;
+      document.getElementById("classCanAscend").checked = c.can_ascend;
+      document.getElementById("classCanElevate").checked = c.can_elevate;
+      document.getElementById("addClassBtn").textContent = t("Сохранить");
+      document.getElementById("cancelClassBtn").style.display = "inline-block";
+    };
+
+    document.getElementById("cancelClassBtn").onclick = () => {
+      editState.classId = null;
+      document.getElementById("className").value = "";
+      document.getElementById("classCanAscend").checked = false;
+      document.getElementById("classCanElevate").checked = false;
+      document.getElementById("addClassBtn").textContent = t("Add");
+      document.getElementById("cancelClassBtn").style.display = "none";
+    };
+
+    window.editAg = (id) => {
+      const a = cache.agathions.find(x => x.id === id);
+      if(!a) return;
+      editState.agId = id;
+      document.getElementById("agName").value = a.name;
+      document.getElementById("agRarity").value = a.rarity;
+      document.getElementById("agCanMeld").checked = a.can_meld;
+      document.getElementById("agCanElevate").checked = a.can_elevate;
+      document.getElementById("agCanSpir").checked = a.can_spiritualize;
+      document.getElementById("addAgBtn").textContent = t("Save");
+      document.getElementById("cancelAgBtn").style.display = "inline-block";
+    };
+
+    document.getElementById("cancelAgBtn").onclick = () => {
+      editState.agId = null;
+      document.getElementById("agName").value = "";
+      document.getElementById("agCanMeld").checked = false;
+      document.getElementById("agCanElevate").checked = false;
+      document.getElementById("agCanSpir").checked = false;
+      document.getElementById("addAgBtn").textContent = t("Add");
+      document.getElementById("cancelAgBtn").style.display = "none";
+    };
+
+    window.editCol = (id) => {
+      const c = cache.collections.find(x => x.id === id);
+      if(!c) return;
+      editState.colId = id;
+      document.getElementById("colName").value = c.name;
+      document.getElementById("colBonus").value = JSON.stringify(c.bonus, null, 2);
+      cache.reqs = JSON.parse(JSON.stringify(c.requirements));
+      renderReqs();
+      document.getElementById("createColBtn").textContent = t("Save");
+      document.getElementById("cancelColBtn").style.display = "inline-block";
+      document.getElementById("colName").scrollIntoView({behavior: "smooth"});
+    };
+
+    document.getElementById("cancelColBtn").onclick = () => {
+      editState.colId = null;
+      document.getElementById("colName").value = "";
+      document.getElementById("colBonus").value = "{}";
+      cache.reqs = [];
+      renderReqs();
+      document.getElementById("createColBtn").textContent = t("Create collection");
+      document.getElementById("cancelColBtn").style.display = "none";
+    };
+
+    function toggleReqFields() {
+      const typeVal = document.getElementById("reqType").value;
+      document.getElementById("reqFieldsClass").style.display = (typeVal === "class") ? "flex" : "none";
+      document.getElementById("reqFieldsAg").style.display = (typeVal === "agathion") ? "flex" : "none";
+    }
+
+    async function refreshReqIdOptions() {
+      const typeVal = document.getElementById("reqType").value;
+      const sel = document.getElementById("reqId");
+      const search = document.getElementById("reqSearch").value.trim().toLowerCase();
+      
+      let items = (typeVal === "class") ? cache.classes : cache.agathions;
+      if (search) items = items.filter(i => i.name.toLowerCase().includes(search));
+      
+      if (items.length === 0) {
+        sel.innerHTML = `<option value="">-- ${t("пусто")} --</option>`;
+      } else {
+        sel.innerHTML = items.map(i => `<option value="${i.id}">${escapeHtml(t(i.name))} (#${i.id})</option>`).join("");
+      }
+      toggleReqFields();
+    }
+
+    function renderCollectionsView() {
+      const q = document.getElementById("searchCollections").value.toLowerCase().trim();
+      let items = cache.collections;
+      if (q) items = items.filter(c => t(c.name).toLowerCase().includes(q) || c.name.toLowerCase().includes(q));
+
+      const el = document.getElementById("colsList");
+      if (!items.length) { el.innerHTML = `<small class="muted">${t("Nothing found")}</small>`; return; }
+
+      el.innerHTML = items.map(c => `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <div><b>${escapeHtml(t(c.name))}</b> <span class="pill">#${c.id}</span></div>
+            <div class="row" style="gap:6px;">
+              <button onclick="editCol(${c.id})">${t("Edit")}</button>
+              <button onclick="delCollection(${c.id})">${t("Delete")}</button>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <small class="muted">Bonus:</small>
+            <pre style="white-space:pre-wrap; margin:6px 0 0 0;">${escapeHtml(JSON.stringify(c.bonus, null, 2))}</pre>
+          </div>
+
+          <div style="margin-top:10px;">
+            <small class="muted">${t("Requirements")}:</small>
+            <div style="margin-top:6px;">
+              ${c.requirements.length ? c.requirements.map(r => `<span class="pill">${reqPreview(r)}</span>`).join(" ") : `<small class="muted">${t("none")}</small>`}
+            </div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function fetchCollections() {
+      cache.collections = await apiGet("/api/collections");
+      renderCollectionsView();
+    }
+
+    async function refreshAll() {
+      metaCache = await apiGet("/api/meta");
+      document.getElementById("classRarity").innerHTML = metaCache.class_rarities.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(t(x))}</option>`).join("");
+      document.getElementById("agRarity").innerHTML = metaCache.agathion_rarities.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(t(x))}</option>`).join("");
+
+      cache.classes = await apiGet("/api/classes");
+      cache.agathions = await apiGet("/api/agathions");
+
+      updateClassesView();
+      updateAgathionsView();
+
+      await refreshReqIdOptions();
+      await fetchCollections();
+    }
+
+    document.getElementById("reqType").onchange = refreshReqIdOptions;
+    document.getElementById("reqSearch").oninput = refreshReqIdOptions;
+
+    document.getElementById("addReqBtn").onclick = async () => {
+      const req_type = document.getElementById("reqType").value;
+      const req_id = Number(document.getElementById("reqId").value);
+      if (!req_id) return;
+
+      const r = { req_type, req_id,
+        min_class_ascend: 0, min_class_elevate: 0,
+        min_ag_meld: 0, min_ag_elevate: 0, min_ag_spiritualize: 0
+      };
+
+      if (req_type === "class") {
+        r.min_class_ascend = Number(document.getElementById("minClassAsc").value || 0);
+        r.min_class_elevate = Number(document.getElementById("minClassElv").value || 0);
+      } else {
+        r.min_ag_meld = Number(document.getElementById("minAgMeld").value || 0);
+        r.min_ag_elevate = Number(document.getElementById("minAgElv").value || 0);
+        r.min_ag_spiritualize = Number(document.getElementById("minAgSp").value || 0);
+      }
+
+      cache.reqs.push(r);
+      renderReqs();
+    };
+
+    document.getElementById("addClassBtn").onclick = async () => {
+      const name = document.getElementById("className").value.trim();
+      if (!name) return;
+      const rarity = document.getElementById("classRarity").value;
+      const can_ascend = document.getElementById("classCanAscend").checked;
+      const can_elevate = document.getElementById("classCanElevate").checked;
+
+      const method = editState.classId ? "PUT" : "POST";
+      const url = editState.classId ? `/api/classes/${editState.classId}` : "/api/classes";
+      await apiSend(url, method, { name, rarity, can_ascend, can_elevate });
+
+      document.getElementById("cancelClassBtn").onclick();
+      await refreshAll();
+    };
+
+    document.getElementById("addAgBtn").onclick = async () => {
+      const name = document.getElementById("agName").value.trim();
+      if (!name) return;
+      const rarity = document.getElementById("agRarity").value;
+      const can_meld = document.getElementById("agCanMeld").checked;
+      const can_elevate = document.getElementById("agCanElevate").checked;
+      const can_spiritualize = document.getElementById("agCanSpir").checked;
+
+      const method = editState.agId ? "PUT" : "POST";
+      const url = editState.agId ? `/api/agathions/${editState.agId}` : "/api/agathions";
+      await apiSend(url, method, { name, rarity, can_meld, can_elevate, can_spiritualize });
+
+      document.getElementById("cancelAgBtn").onclick();
+      await refreshAll();
+    };
+
+    document.getElementById("createColBtn").onclick = async () => {
+      const name = document.getElementById("colName").value.trim();
+      if (!name) return;
+
+      let bonus = {};
+      const raw = document.getElementById("colBonus").value.trim();
+      try { bonus = raw ? JSON.parse(raw) : {}; }
+      catch { alert("Bonus JSON не парсится"); return; }
+
+      const method = editState.colId ? "PUT" : "POST";
+      const url = editState.colId ? `/api/collections/${editState.colId}` : "/api/collections";
+      await apiSend(url, method, { name, bonus, requirements: cache.reqs });
+
+      document.getElementById("cancelColBtn").onclick();
+      await fetchCollections();
+    };
+
+    document.getElementById("refreshColsBtn").onclick = fetchCollections;
+    document.getElementById("exportBtn").onclick = async () => {
+  const data = await apiGet("/api/export");
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "collections_export.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+};
+
+document.getElementById("importBtn").onclick = async () => {
+  const f = document.getElementById("importFile").files[0];
+  if (!f) { alert("Выбери JSON файл"); return; }
+
+  const text = await f.text();
+  let obj;
+  try { obj = JSON.parse(text); }
+  catch { alert("JSON не парсится"); return; }
+
+  const res = await apiSend("/api/import", "POST", obj);
+  document.getElementById("importExportStatus").innerHTML =
+    `<span class="pill">OK</span> imported_collections=${res.imported_collections}, imported_owned=${res.imported_owned}`;
+
+  // обновим UI
+  await refreshAll();
+};
+
+    (async () => {
+      await mountNav();
+
+      document.getElementById("data-h1").textContent = t("Data");
+      document.getElementById("data-desc").textContent = t("Add classes/agathions...");
+      document.getElementById("data-import-h2").textContent = t("Import / Export");
+      document.getElementById("data-classes-h2").textContent = t("Classes");
+      document.getElementById("data-ags-h2").textContent = t("Agathions");
+      document.getElementById("data-cols-h2").textContent = t("Collections");
+      document.getElementById("data-reqs-h3").textContent = t("Requirements");
+      
+      document.getElementById("className").placeholder = t("Class name");
+      document.getElementById("agName").placeholder = t("Agathion name");
+      document.getElementById("colName").placeholder = t("Collection name");
+      
+      document.getElementById("addClassBtn").textContent = t("Add");
+      document.getElementById("cancelClassBtn").textContent = t("Cancel");
+      document.getElementById("addAgBtn").textContent = t("Add");
+      document.getElementById("cancelAgBtn").textContent = t("Cancel");
+      document.getElementById("addReqBtn").textContent = t("Add requirement");
+      document.getElementById("createColBtn").textContent = t("Create collection");
+      document.getElementById("cancelColBtn").textContent = t("Cancel");
+      document.getElementById("refreshColsBtn").textContent = t("Update list");
+      document.getElementById("data-bonus-desc").textContent = t("Bonus JSON (example: ...)");
+
+      document.getElementById("searchClasses").placeholder = t("Search classes...");
+      document.getElementById("searchAgathions").placeholder = t("Search agathions...");
+      document.getElementById("searchCollections").placeholder = t("Search collections...");
+
+      document.getElementById("searchClasses").oninput = updateClassesView;
+      document.getElementById("searchAgathions").oninput = updateAgathionsView;
+      document.getElementById("searchCollections").oninput = renderCollectionsView;
+
+      renderReqs();
+      await refreshAll();
+    })();
+  </script>
+
+</body>
+</html>

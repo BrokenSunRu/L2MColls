@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tracker</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="nav"></div>
+
+  <main>
+    <div class="card">
+      <h1 id="main-title"></h1>
+      <p><small id="main-desc" class="muted"></small></p>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <a class="pill" href="/data">${t("→ Data")}</a>
+        <a class="pill" href="/inventory">${t("→ My Items")}</a>
+        <a class="pill" href="/finder">→ Finder</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script>
+    (async () => {
+      await mountNav();
+      document.getElementById("main-title").textContent = t("Local collection tracker");
+      document.getElementById("main-desc").textContent = t("Go to 'Data'...");
+    })();
+  </script>
+</body>
+</html>

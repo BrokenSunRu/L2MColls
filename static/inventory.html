@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Моё</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="nav"></div>
+  <main>
+    <div class="card">
+      <h1 id="inv-h1"></h1>
+      <p><small id="inv-desc" class="muted"></small></p>
+      <div class="row" style="margin-top:12px;">
+        <input id="invSearch" placeholder="" style="min-width:240px;" />
+        <select id="invRarity">
+          <option value=""></option>
+        </select>
+        <label class="row" style="gap:8px; cursor:pointer;">
+          <input type="checkbox" id="invOwnedOnly" />
+          <span id="lblOwnedOnly"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="list">
+      <div class="card">
+        <h2 id="inv-classes-h2"></h2>
+        <div id="ownedClasses" style="max-height:500px; overflow-y:auto; padding-right:8px;"></div>
+      </div>
+      <div class="card">
+        <h2 id="inv-ags-h2"></h2>
+        <div id="ownedAg" style="max-height:500px; overflow-y:auto; padding-right:8px;"></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script>
+    function ownedKey(typeVal, id) { return `${typeVal}:${id}`; }
+
+    function clampInt(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0) return 0;
+      return Math.floor(n);
+    }
+
+    let invCache = { classes: [], agathions: [], owned: new Map() };
+
+    async function initData() {
+      document.getElementById("invSearch").oninput = renderInventory;
+      document.getElementById("invRarity").onchange = renderInventory;
+      document.getElementById("invOwnedOnly").onchange = renderInventory;
+
+      const [classes, agathions, meta] = await Promise.all([
+        apiGet("/api/classes"),
+        apiGet("/api/agathions"),
+        apiGet("/api/meta")
+      ]);
+
+      invCache.classes = classes;
+      invCache.agathions = agathions;
+
+      const rSel = document.getElementById("invRarity");
+      const allRarities = new Set([...meta.class_rarities, ...meta.agathion_rarities]);
+      rSel.innerHTML = `<option value="">-- ${t("Все редкости")} --</option>` + 
+        Array.from(allRarities).map(x => `<option value="${escapeHtml(x)}">${escapeHtml(t(x))}</option>`).join("");
+    }
+
+    async function fetchOwned() {
+      const ownedRows = await apiGet("/api/owned");
+      invCache.owned.clear();
+      for (const r of ownedRows) invCache.owned.set(ownedKey(r.req_type, r.req_id), r);
+    }
+
+    function renderInventory() {
+      const search = document.getElementById("invSearch").value.toLowerCase().trim();
+      const rarity = document.getElementById("invRarity").value;
+      const ownedOnly = document.getElementById("invOwnedOnly").checked;
+
+      const filterFn = (typeVal, item) => {
+        if (search && !t(item.name).toLowerCase().includes(search) && !item.name.toLowerCase().includes(search)) return false;
+        if (rarity && item.rarity !== rarity) return false;
+        if (ownedOnly && !invCache.owned.has(ownedKey(typeVal, item.id))) return false;
+        return true;
+      };
+
+      const fClasses = invCache.classes.filter(c => filterFn("class", c));
+      const fAgs = invCache.agathions.filter(a => filterFn("agathion", a));
+
+      const clsEl = document.getElementById("ownedClasses");
+      const agEl = document.getElementById("ownedAg");
+
+      clsEl.innerHTML = fClasses.length ? fClasses.map(c => {
+        const k = ownedKey("class", c.id);
+        const o = invCache.owned.get(k);
+        const checked = !!o;
+
+        const ascend = o ? o.class_ascend : 0;
+        const elevate = o ? o.class_elevate : 0;
+
+        const showAsc = !!c.can_ascend;
+        const showElv = !!c.can_elevate;
+
+        const ascendDisabled = !showAsc || !checked;
+        const elevateDisabled = !showElv || !checked;
+
+        return `
+          <div class="card" style="margin-bottom:10px;">
+            <div class="row" style="justify-content:space-between;">
+              <label class="row" style="gap:10px;">
+                <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleOwned('class', ${c.id}, this.checked)" />
+                <span>${escapeHtml(t(c.name))} <span class="pill">${escapeHtml(t(c.rarity))}</span> <span class="pill">#${c.id}</span></span>
+              </label>
+            </div>
+
+            ${(showAsc || showElv) ? `
+              <div class="row" style="margin-top:10px;">
+                ${showAsc ? `
+                  <div class="pill">${t("Ascend")}</div>
+                  <input type="number" min="0" step="1" value="${ascend}" ${ascendDisabled ? "disabled" : ""} onchange="setLevelsClass(${c.id})" id="clsAsc_${c.id}" />
+                ` : ``}
+
+                ${showElv ? `
+                  <div class="pill">${t("Elevate")}</div>
+                  <input type="number" min="0" step="1" value="${elevate}" ${elevateDisabled ? "disabled" : ""} onchange="setLevelsClass(${c.id})" id="clsElv_${c.id}" />
+                ` : ``}
+              </div>
+              <small class="muted">${t("Item points = (Ascend if any) + (Elevate if any)")}</small>
+            ` : `
+              <small class="muted">${t("This class has no upgrades")}</small>
+            `}
+          </div>
+        `;
+      }).join("") : `<small class="muted">${t("Nothing found")}</small>`;
+
+      agEl.innerHTML = fAgs.length ? fAgs.map(a => {
+        const k = ownedKey("agathion", a.id);
+        const o = invCache.owned.get(k);
+        const checked = !!o;
+
+        const meld = o ? o.ag_meld : 0;
+        const elevate = o ? o.ag_elevate : 0;
+        const spir = o ? o.ag_spiritualize : 0;
+
+        const showM = !!a.can_meld;
+        const showE = !!a.can_elevate;
+        const showS = !!a.can_spiritualize;
+
+        const meldDisabled = !showM || !checked;
+        const elevateDisabled = !showE || !checked;
+        const spirDisabled = !showS || !checked;
+
+        return `
+          <div class="card" style="margin-bottom:10px;">
+            <div class="row" style="justify-content:space-between;">
+              <label class="row" style="gap:10px;">
+                <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleOwned('agathion', ${a.id}, this.checked)" />
+                <span>${escapeHtml(t(a.name))} <span class="pill">${escapeHtml(t(a.rarity))}</span> <span class="pill">#${a.id}</span></span>
+              </label>
+            </div>
+
+            ${(showM || showE || showS) ? `
+              <div class="row" style="margin-top:10px;">
+                ${showM ? `
+                  <div class="pill">${t("Meld")}</div>
+                  <input type="number" min="0" step="1" value="${meld}" ${meldDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agMeld_${a.id}" />
+                ` : ``}
+
+                ${showE ? `
+                  <div class="pill">${t("Elevate")}</div>
+                  <input type="number" min="0" step="1" value="${elevate}" ${elevateDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agElv_${a.id}" />
+                ` : ``}
+
+                ${showS ? `
+                  <div class="pill">${t("Spiritualize")}</div>
+                  <input type="number" min="0" step="1" value="${spir}" ${spirDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agSp_${a.id}" />
+                ` : ``}
+              </div>
+              <small class="muted">${t("Item points = sum of available upgrades")}</small>
+            ` : `
+              <small class="muted">${t("This agathion has no upgrades")}</small>
+            `}
+          </div>
+        `;
+      }).join("") : `<small class="muted">${t("Nothing found")}</small>`;
+    }
+
+    window.toggleOwned = async (req_type, req_id, owned) => {
+      await apiSend("/api/owned/set", "POST", { req_type, req_id, owned });
+      await fetchOwned();
+      renderInventory();
+    };
+
+    window.setLevelsClass = async (id) => {
+      const ascEl = document.getElementById(`clsAsc_${id}`);
+      const elvEl = document.getElementById(`clsElv_${id}`);
+
+      const class_ascend = ascEl ? clampInt(ascEl.value || 0) : 0;
+      const class_elevate = elvEl ? clampInt(elvEl.value || 0) : 0;
+
+      await apiSend("/api/owned/levels", "POST", {
+        req_type: "class",
+        req_id: id,
+        class_ascend,
+        class_elevate,
+        ag_meld: 0,
+        ag_elevate: 0,
+        ag_spiritualize: 0
+      });
+
+      await fetchOwned();
+      renderInventory();
+    };
+
+    window.setLevelsAg = async (id) => {
+      const meldEl = document.getElementById(`agMeld_${id}`);
+      const elvEl = document.getElementById(`agElv_${id}`);
+      const spEl = document.getElementById(`agSp_${id}`);
+
+      const ag_meld = meldEl ? clampInt(meldEl.value || 0) : 0;
+      const ag_elevate = elvEl ? clampInt(elvEl.value || 0) : 0;
+      const ag_spiritualize = spEl ? clampInt(spEl.value || 0) : 0;
+
+      await apiSend("/api/owned/levels", "POST", {
+        req_type: "agathion",
+        req_id: id,
+        class_ascend: 0,
+        class_elevate: 0,
+        ag_meld,
+        ag_elevate,
+        ag_spiritualize
+      });
+
+      await fetchOwned();
+      renderInventory();
+    };
+
+    (async () => {
+      await mountNav();
+
+      document.getElementById("inv-h1").textContent = t("My Inventory");
+      document.getElementById("inv-desc").textContent = t("Check what you have...");
+      document.getElementById("invSearch").placeholder = t("Search by name...");
+      document.getElementById("invRarity").options[0].textContent = `-- ${t("All rarities")} --`;
+      document.getElementById("lblOwnedOnly").textContent = t("Owned only");
+      document.getElementById("inv-classes-h2").textContent = t("Classes");
+      document.getElementById("inv-ags-h2").textContent = t("Agathions");
+
+      await initData();
+      await fetchOwned();
+      renderInventory();
+    })();
+  </script>
+</body>
+</html>

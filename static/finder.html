@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Finder</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="nav"></div>
+  <main>
+    <div class="card">
+      <h1 id="fnd-h1"></h1>
+      <p><small id="fnd-desc" class="muted"></small></p>
+      <div class="row">
+        <input id="stat" placeholder="STAT_KEY" style="min-width:320px;" />
+        <button id="go"></button>
+      </div>
+      <div style="margin-top:16px;">
+        <small id="fnd-avail-desc" class="muted"></small>
+        <div id="availableStats" class="row" style="margin-top:8px; gap:8px;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="fnd-opened-h2"></h2>
+      <div id="opened"></div>
+    </div>
+
+    <div class="card">
+      <h2 id="fnd-missing-h2"></h2>
+      <div id="missing"></div>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script>
+    function renderReqDiff(r) {
+      if (r.missing) {
+        return `<span class="pill" style="background:#ef4444;">${r.req_type === "class" ? t("Class not owned") : t("Agathion not owned")}</span>`;
+      }
+      
+      let diffs = [];
+      if (r.req_type === "class") {
+        if (r.have_class_ascend < r.need_class_ascend) 
+          diffs.push(`${t("Ascend")}: ${t("need")} ${r.need_class_ascend}, ${t("have")} ${r.have_class_ascend}`);
+        if (r.have_class_elevate < r.need_class_elevate) 
+          diffs.push(`${t("Elevate")}: ${t("need")} ${r.need_class_elevate}, ${t("have")} ${r.have_class_elevate}`);
+      } else {
+        if (r.have_ag_meld < r.need_ag_meld) 
+          diffs.push(`${t("Meld")}: ${t("need")} ${r.need_ag_meld}, ${t("have")} ${r.have_ag_meld}`);
+        if (r.have_ag_elevate < r.need_ag_elevate) 
+          diffs.push(`${t("Elevate")}: ${t("need")} ${r.need_ag_elevate}, ${t("have")} ${r.have_ag_elevate}`);
+        if (r.have_ag_spiritualize < r.need_ag_spiritualize) 
+          diffs.push(`${t("Spiritualize")}: ${t("need")} ${r.need_ag_spiritualize}, ${t("have")} ${r.have_ag_spiritualize}`);
+      }
+      
+      if (diffs.length === 0) return `<span class="pill">${t("Condition met")}</span>`;
+      return diffs.map(d => `<span class="pill">${escapeHtml(d)}</span>`).join(" ");
+    }
+
+    function formatProvides(p) {
+      if (typeof p === 'object' && p !== null) {
+        return p.type === 'percent' ? `${p.value}%` : `${p.value}`;
+      }
+      return p;
+    }
+
+    function renderOpened(items, stat) {
+      if (!items || items.length === 0) return `<small class="muted">${t("Nothing found")}</small>`;
+      return items.map(x => `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <div><b>${escapeHtml(t(x.collection_name))}</b></div>
+            <div class="pill" style="background:#10b981; color:#fff;">
+              ${escapeHtml(t(stat))}: +${escapeHtml(formatProvides(x.provides))}
+            </div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderMissing(items, stat) {
+      if (!items || items.length === 0) return `<small class="muted">${t("Nothing found")}</small>`;
+      return items.map(x => `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <div><b>${escapeHtml(t(x.collection_name))}</b></div>
+            <div class="pill">${escapeHtml(t(stat))}: +${escapeHtml(formatProvides(x.provides))}</div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <small class="muted">${t("What is not met:")}</small>
+            <div style="margin-top:6px;">
+              ${x.missing.map(r => `
+                <div class="card" style="margin:8px 0 0 0;">
+                  <div><b>${escapeHtml(t(r.req_type))}: ${escapeHtml(t(r.name))}</b></div>
+                  <div style="margin-top:6px;">
+                    ${renderReqDiff(r)}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function run() {
+      const stat = document.getElementById("stat").value.trim();
+      if (!stat) return;
+      
+      const res = await apiGet(`/api/finder?stat=${encodeURIComponent(stat)}`);
+      const opened = res.filter(x => x.unlocked);
+      const missing = res.filter(x => !x.unlocked);
+      
+      document.getElementById("opened").innerHTML = renderOpened(opened, stat);
+      document.getElementById("missing").innerHTML = renderMissing(missing, stat);
+    }
+
+    window.setStat = (s) => {
+      document.getElementById("stat").value = s;
+      run();
+    };
+
+    async function loadStats() {
+      const stats = await apiGet("/api/stats");
+      const container = document.getElementById("availableStats");
+      if (!stats || stats.length === 0) {
+        container.innerHTML = `<small class="muted">${t("No stats yet")}</small>`;
+        return;
+      }
+      container.innerHTML = stats.map(s => `
+        <span class="pill" style="cursor:pointer;" onclick="setStat('${escapeHtml(s)}')">${escapeHtml(t(s))}</span>
+      `).join("");
+    }
+
+    (async () => {
+      await mountNav();
+
+      document.getElementById("fnd-h1").textContent = t("Stat Finder");
+      document.getElementById("fnd-desc").textContent = t("Enter stat key...");
+      document.getElementById("go").textContent = t("Search");
+      document.getElementById("fnd-avail-desc").textContent = t("Available stats in DB:");
+      document.getElementById("fnd-opened-h2").textContent = t("Collections already unlocked");
+      document.getElementById("fnd-missing-h2").textContent = t("Collections that give this stat but are not unlocked");
+
+      await loadStats();
+      document.getElementById("go").onclick = run;
+    })();
+  </script>
+</body>
+</html>
