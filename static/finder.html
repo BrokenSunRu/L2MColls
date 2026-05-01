@@ -94,7 +94,7 @@
             <div style="margin-top:6px;">
               ${x.missing.map(r => `
                 <div class="card" style="margin:8px 0 0 0;">
-                  <div><b>${escapeHtml(t(r.req_type))}: ${escapeHtml(t(r.name))}</b></div>
+                  <div><b><span style="color: ${getRarityColor(r.rarity)};">${escapeHtml(t(r.rarity))}</span> ${escapeHtml(t(r.req_type))}: ${escapeHtml(t(r.name))}</b></div>
                   <div style="margin-top:6px;">
                     ${renderReqDiff(r)}
                   </div>

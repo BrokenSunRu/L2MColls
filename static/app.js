@@ -59,6 +59,19 @@ function t(key) {
   return i18n[key] || key;
 }
 
+function getRarityColor(rarity) {
+  const colors = {
+    "Zenith": "#2EE5B5",
+    "Mythic": "#F4B43E",
+    "Legend": "#9B59B6",
+    "Epic": "#B92D4B",
+    "Unique": "#3498DB",
+    "Rare": "#27AE60",
+    "Common": "#BDC3C7"
+  };
+  return colors[rarity] || "";
+}
+
 function getTheme() {
   return localStorage.getItem("theme") || "dark";
 }

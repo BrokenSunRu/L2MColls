@@ -286,6 +286,7 @@ class FinderResultReq(BaseModel):
     req_type: Literal["class", "agathion"]
     req_id: int
     name: str
+    rarity: str
     missing: bool
 
     need_class_ascend: int = 0
@@ -828,6 +829,13 @@ def _name_by_req(conn: sqlite3.Connection, req_type: str, req_id: int) -> str:
         r = conn.execute("SELECT name FROM agathions WHERE id=?;", (req_id,)).fetchone()
     return r["name"] if r else f"#{req_id}"
 
+def _info_by_req(conn: sqlite3.Connection, req_type: str, req_id: int) -> tuple[str, str]:
+    if req_type == "class":
+        r = conn.execute("SELECT name, rarity FROM classes WHERE id=?;", (req_id,)).fetchone()
+    else:
+        r = conn.execute("SELECT name, rarity FROM agathions WHERE id=?;", (req_id,)).fetchone()
+    return (r["name"], r["rarity"]) if r else (f"#{req_id}", "Common")
+
 def _bonus_get(bonus: Dict[str, Any], stat: str) -> Optional[Any]:
     # stat key normalized
     return bonus.get(stat)
@@ -915,11 +923,13 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
 
             if not ok:
                 unlocked = False
+                req_name, req_rarity = _info_by_req(conn, r["req_type"], int(r["req_id"]))
                 missing_list.append(
                     FinderResultReq(
                         req_type=r["req_type"],
                         req_id=int(r["req_id"]),
-                        name=_name_by_req(conn, r["req_type"], int(r["req_id"])),
+                        name=req_name,
+                        rarity=req_rarity,
                         missing=(have is None),
 
                         need_class_ascend=need_ca,
