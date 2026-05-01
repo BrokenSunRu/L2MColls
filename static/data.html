@@ -31,8 +31,8 @@
           <select id="classRarity"></select>
         </div>
         <div class="row" style="margin-top:8px;">
-          <label class="row" style="gap:8px;"><input id="classCanAscend" type="checkbox" /> Ascend</label>
-          <label class="row" style="gap:8px;"><input id="classCanElevate" type="checkbox" /> Elevate</label>
+        <label class="row" style="gap:8px;"><input id="classCanAscend" type="checkbox" /> <span id="lblClassAscend"></span></label>
+        <label class="row" style="gap:8px;"><input id="classCanElevate" type="checkbox" /> <span id="lblClassElevate"></span></label>
           <button id="addClassBtn"></button>
           <button id="cancelClassBtn" style="display:none; background:var(--bg);"></button>
         </div>
@@ -47,9 +47,9 @@
           <select id="agRarity"></select>
         </div>
         <div class="row" style="margin-top:8px;">
-          <label class="row" style="gap:8px;"><input id="agCanMeld" type="checkbox" /> Meld</label>
-          <label class="row" style="gap:8px;"><input id="agCanElevate" type="checkbox" /> Elevate</label>
-          <label class="row" style="gap:8px;"><input id="agCanSpir" type="checkbox" /> Spiritualize</label>
+        <label class="row" style="gap:8px;"><input id="agCanMeld" type="checkbox" /> <span id="lblAgMeld"></span></label>
+        <label class="row" style="gap:8px;"><input id="agCanElevate" type="checkbox" /> <span id="lblAgElevate"></span></label>
+        <label class="row" style="gap:8px;"><input id="agCanSpir" type="checkbox" /> <span id="lblAgSpir"></span></label>
           <button id="addAgBtn"></button>
           <button id="cancelAgBtn" style="display:none; background:var(--bg);"></button>
         </div>
@@ -80,18 +80,18 @@
         <select id="reqId"></select>
 
         <div id="reqFieldsClass" class="row" style="gap:8px;">
-          <span class="pill">min Ascend</span>
+          <span class="pill" id="lblMinClassAsc"></span>
           <input id="minClassAsc" type="number" min="0" step="1" value="0" style="width:90px;" />
-          <span class="pill">min Elevate</span>
+          <span class="pill" id="lblMinClassElv"></span>
           <input id="minClassElv" type="number" min="0" step="1" value="0" style="width:90px;" />
         </div>
 
         <div id="reqFieldsAg" class="row" style="gap:8px; display:none;">
-          <span class="pill">min Meld</span>
+          <span class="pill" id="lblMinAgMeld"></span>
           <input id="minAgMeld" type="number" min="0" step="1" value="0" style="width:90px;" />
-          <span class="pill">min Elevate</span>
+          <span class="pill" id="lblMinAgElv"></span>
           <input id="minAgElv" type="number" min="0" step="1" value="0" style="width:90px;" />
-          <span class="pill">min Spiritualize</span>
+          <span class="pill" id="lblMinAgSpir"></span>
           <input id="minAgSp" type="number" min="0" step="1" value="0" style="width:110px;" />
         </div>
 
@@ -465,6 +465,16 @@ document.getElementById("importBtn").onclick = async () => {
       document.getElementById("cancelClassBtn").textContent = t("Cancel");
       document.getElementById("addAgBtn").textContent = t("Add");
       document.getElementById("cancelAgBtn").textContent = t("Cancel");
+      document.getElementById("lblClassAscend").textContent = t("Ascend");
+      document.getElementById("lblClassElevate").textContent = t("Elevate");
+      document.getElementById("lblAgMeld").textContent = t("Meld");
+      document.getElementById("lblAgElevate").textContent = t("Elevate");
+      document.getElementById("lblAgSpir").textContent = t("Spiritualize");
+      document.getElementById("lblMinClassAsc").textContent = t("min Ascend");
+      document.getElementById("lblMinClassElv").textContent = t("min Elevate");
+      document.getElementById("lblMinAgMeld").textContent = t("min Meld");
+      document.getElementById("lblMinAgElv").textContent = t("min Elevate");
+      document.getElementById("lblMinAgSpir").textContent = t("min Spiritualize");
       document.getElementById("addReqBtn").textContent = t("Add requirement");
       document.getElementById("createColBtn").textContent = t("Create collection");
       document.getElementById("cancelColBtn").textContent = t("Cancel");
