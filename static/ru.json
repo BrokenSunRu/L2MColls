@@ -9,8 +9,6 @@
     "Orphea": "Орфея",
     "Raoul": "Рауль",
     "Antharas": "Антарас",
-    "Agathion of the Dragon": "Агатион Дракона",
-    "Agathion of the Tiger": "Агатион Тигра",
     "Strength": "Сила",
     "Agility": "Ловкость",
     "Intellect": "Интеллект",
@@ -85,7 +83,7 @@
     "Nothing found": "Ничего не найдено",
 
     "_finder_page_": "Страница 'Finder'",
-    "Enter stat key...": "Введи ключ стата (как в bonus JSON), например: CC_Duration_Reduction, Damage_Block, Damage_Reduction.",
+    "Enter stat key...": "Введи имя стата или выберите из списка ниже...",
     "Search": "Искать",
     "Available stats in DB:": "Доступные статы в базе:",
     "No stats yet": "Пока нет статов",
