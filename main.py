@@ -817,6 +817,13 @@ def api_owned_levels(payload: OwnedLevelsIn, conn: sqlite3.Connection = Depends(
     conn.commit()
     return {"ok": True}
 
+@app.delete("/api/owned", response_model=Dict[str, Any])
+def api_owned_clear(conn: sqlite3.Connection = Depends(get_db)):
+    # Полностью очищаем инвентарь (удаляем все записи из таблицы owned)
+    conn.execute("DELETE FROM owned;")
+    conn.commit()
+    return {"ok": True}
+
 
 # -----------------------------------------------------------------------------
 # Routes: Finder
@@ -995,6 +1002,10 @@ class ExportPayload(BaseModel):
     classes: List[ClassIn] = Field(default_factory=list)
     agathions: List[AgathionIn] = Field(default_factory=list)
     collections: List[ExportCollection] = Field(default_factory=list)
+    owned: List[ExportOwned] = Field(default_factory=list)
+
+class ExportOwnedPayload(BaseModel):
+    version: int = 1
     owned: List[ExportOwned] = Field(default_factory=list)
 
 @app.get("/api/export", response_model=ExportPayload, response_model_exclude_none=True)
@@ -1231,3 +1242,64 @@ def api_import(payload: ExportPayload, conn: sqlite3.Connection = Depends(get_db
     conn.commit()
 
     return {"ok": True, "imported_collections": imported_cols, "imported_owned": imported_owned}
+
+@app.get("/api/export_owned", response_model=ExportOwnedPayload, response_model_exclude_none=True)
+def api_export_owned(conn: sqlite3.Connection = Depends(get_db)) -> ExportOwnedPayload:
+    owned_rows = conn.execute(
+        """
+        SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize
+        FROM owned
+        ORDER BY req_type, req_id;
+        """
+    ).fetchall()
+
+    export_owned: List[ExportOwned] = []
+    for r in owned_rows:
+        kwargs = {
+            "req_type": r["req_type"],
+            "name": _name_by_req(conn, r["req_type"], int(r["req_id"]))
+        }
+        if r["req_type"] == "class":
+            kwargs["class_ascend"] = int(r["class_ascend"])
+            kwargs["class_elevate"] = int(r["class_elevate"])
+        else:
+            kwargs["ag_meld"] = int(r["ag_meld"])
+            kwargs["ag_elevate"] = int(r["ag_elevate"])
+            kwargs["ag_spiritualize"] = int(r["ag_spiritualize"])
+        export_owned.append(ExportOwned(**kwargs))
+
+    return ExportOwnedPayload(version=1, owned=export_owned)
+
+@app.post("/api/import_owned", response_model=Dict[str, Any])
+def api_import_owned(payload: ExportOwnedPayload, conn: sqlite3.Connection = Depends(get_db)) -> Dict[str, Any]:
+    if payload.version != 1:
+        raise HTTPException(status_code=400, detail="Unsupported version")
+
+    # Очищаем таблицу перед импортом
+    conn.execute("DELETE FROM owned;")
+
+    imported_owned = 0
+    for o in payload.owned:
+        item_name = normalize_name(o.name)
+        if o.req_type == "class":
+            rr = conn.execute("SELECT id FROM classes WHERE name=?;", (item_name,)).fetchone()
+            if not rr:
+                continue
+            rid = int(rr["id"])
+            conn.execute(
+                "INSERT INTO owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize) VALUES ('class', ?, ?, ?, 0, 0, 0)",
+                (rid, int(o.class_ascend or 0), int(o.class_elevate or 0))
+            )
+        else:
+            rr = conn.execute("SELECT id FROM agathions WHERE name=?;", (item_name,)).fetchone()
+            if not rr:
+                continue
+            rid = int(rr["id"])
+            conn.execute(
+                "INSERT INTO owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize) VALUES ('agathion', ?, 0, 0, ?, ?, ?)",
+                (rid, int(o.ag_meld or 0), int(o.ag_elevate or 0), int(o.ag_spiritualize or 0))
+            )
+        imported_owned += 1
+
+    conn.commit()
+    return {"ok": True, "imported_owned": imported_owned}

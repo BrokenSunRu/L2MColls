@@ -20,6 +20,11 @@
     <input id="importFile" type="file" accept="application/json" />
     <button id="importBtn">Import JSON</button>
   </div>
+  <div class="row" style="margin-top:10px;">
+    <button id="exportOwnedBtn"></button>
+    <input id="importOwnedFile" type="file" accept="application/json" />
+    <button id="importOwnedBtn"></button>
+  </div>
   <div id="importExportStatus" style="margin-top:10px;"></div>
 </div>
 
@@ -446,6 +451,13 @@ document.getElementById("importBtn").onclick = async () => {
   await refreshAll();
 };
 
+document.getElementById("exportOwnedBtn").onclick = doExportOwned;
+document.getElementById("importOwnedBtn").onclick = async () => {
+  const f = document.getElementById("importOwnedFile").files[0];
+  if (!f) { alert("Выбери JSON файл"); return; }
+  await doImportOwned(f);
+};
+
     (async () => {
       await mountNav();
 
@@ -484,6 +496,9 @@ document.getElementById("importBtn").onclick = async () => {
       document.getElementById("searchClasses").placeholder = t("Search classes...");
       document.getElementById("searchAgathions").placeholder = t("Search agathions...");
       document.getElementById("searchCollections").placeholder = t("Search collections...");
+      
+      document.getElementById("exportOwnedBtn").textContent = t("Export Owned JSON");
+      document.getElementById("importOwnedBtn").textContent = t("Import Owned JSON");
 
       document.getElementById("searchClasses").oninput = updateClassesView;
       document.getElementById("searchAgathions").oninput = updateAgathionsView;

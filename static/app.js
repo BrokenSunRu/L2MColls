@@ -136,3 +136,39 @@ async function mountNav() {
   const langBtn = document.getElementById("langBtn");
   if (langBtn) langBtn.onclick = toggleLang;
 }
+
+async function doExportOwned() {
+  try {
+    const data = await apiGet('/api/export_owned');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'l2m_owned_inventory.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function doImportOwned(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const json = JSON.parse(text);
+    if (!json.owned) {
+      alert("Неверный формат файла: отсутствует массив 'owned'.");
+      return;
+    }
+    
+    const result = await apiSend('/api/import_owned', 'POST', json);
+    if (result.ok) {
+      alert(`Инвентарь успешно импортирован! Загружено предметов: ${result.imported_owned}`);
+      location.reload();
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Ошибка импорта инвентаря. Проверьте консоль.");
+  }
+}

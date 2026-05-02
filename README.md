@@ -8,7 +8,7 @@ A lightweight, local web application designed to help Lineage 2M players track t
 - **Collections Tracking:** Create collections with specific stat bonuses and item requirements (including minimum upgrade levels required).
 - **Personal Inventory (My Items):** Mark items you currently own and adjust their specific upgrade levels.
 - **Smart Finder:** Search for specific stats (e.g., `Damage_Reduction` or `CC_Duration_Reduction`). The app will display which collections provide the stat, whether you have unlocked them, and exactly **what items or upgrades you are missing** to complete them.
-- **Import / Export:** Easily backup your entire database (classes, agathions, collections, and inventory) to a JSON file and restore it at any time.
+- **Import / Export:** Easily backup your entire database (classes, agathions, collections, and inventory) to a JSON file and restore it at any time. You can also export/import just your personal inventory to smoothly update your local database from someone else's file!
 
 ## Tech Stack
 
