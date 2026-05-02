@@ -70,8 +70,17 @@
         <input id="colName" placeholder="" style="min-width:280px;" />
       </div>
 
-      <p><small id="data-bonus-desc" class="muted"></small></p>
-      <textarea id="colBonus">{}</textarea>
+      <div class="row" style="gap:8px; margin-top:12px;">
+        <input id="bonusStatName" list="statsDatalist" placeholder="Stat name..." style="width:180px;" />
+        <datalist id="statsDatalist"></datalist>
+        <input id="bonusStatValue" type="number" step="0.1" placeholder="Value..." style="width:90px;" />
+        <select id="bonusStatType">
+          <option value="flat">Flat</option>
+          <option value="percent">%</option>
+        </select>
+        <button id="addBonusBtn"></button>
+      </div>
+      <div id="bonusList" style="margin-top:12px; margin-bottom:12px;"></div>
 
       <hr />
       <h3 id="data-reqs-h3" style="margin:0 0 10px 0;"></h3>
@@ -120,7 +129,7 @@
   <script src="/static/app.js"></script>
   <script>
     let metaCache = null;
-    let cache = { classes: [], agathions: [], reqs: [], collections: [] };
+    let cache = { classes: [], agathions: [], reqs: [], collections: [], bonus: {} };
     let editState = { classId: null, agId: null, colId: null };
 
     function reqPreview(r) {
@@ -147,6 +156,30 @@
     window.removeReq = (idx) => {
       cache.reqs.splice(idx, 1);
       renderReqs();
+    };
+
+    function renderBonuses() {
+      const el = document.getElementById("bonusList");
+      const keys = Object.keys(cache.bonus);
+      if (keys.length === 0) {
+        el.innerHTML = `<small class="muted">${t("No bonuses yet")}</small>`;
+        return;
+      }
+      el.innerHTML = keys.map(k => {
+        const b = cache.bonus[k];
+        const displayVal = b.type === "percent" ? `${b.value}%` : b.value;
+        return `
+          <div class="row" style="justify-content:space-between; border:1px solid #1f2a37; border-radius:12px; padding:10px; margin-bottom:8px;">
+            <div><b>${escapeHtml(t(k))}</b>: +${escapeHtml(displayVal)}</div>
+            <button onclick="removeBonus('${escapeHtml(k.replace(/'/g, "\\'"))}')">${t("Remove")}</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    window.removeBonus = (k) => {
+      delete cache.bonus[k];
+      renderBonuses();
     };
 
     function renderClasses(items) {
@@ -251,7 +284,15 @@
       if(!c) return;
       editState.colId = id;
       document.getElementById("colName").value = c.name;
-      document.getElementById("colBonus").value = JSON.stringify(c.bonus, null, 2);
+      cache.bonus = {};
+      for (const [k, v] of Object.entries(c.bonus)) {
+        if (typeof v === 'object' && v !== null) {
+          cache.bonus[k] = { value: v.value, type: v.type };
+        } else {
+          cache.bonus[k] = { value: Number(v), type: 'flat' };
+        }
+      }
+      renderBonuses();
       cache.reqs = JSON.parse(JSON.stringify(c.requirements));
       renderReqs();
       document.getElementById("createColBtn").textContent = t("Save");
@@ -262,7 +303,8 @@
     document.getElementById("cancelColBtn").onclick = () => {
       editState.colId = null;
       document.getElementById("colName").value = "";
-      document.getElementById("colBonus").value = "{}";
+      cache.bonus = {};
+      renderBonuses();
       cache.reqs = [];
       renderReqs();
       document.getElementById("createColBtn").textContent = t("Create collection");
@@ -337,6 +379,10 @@
       cache.classes = await apiGet("/api/classes");
       cache.agathions = await apiGet("/api/agathions");
 
+      const stats = await apiGet("/api/stats");
+      const dl = document.getElementById("statsDatalist");
+      dl.innerHTML = stats.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(t(s))}</option>`).join("");
+
       updateClassesView();
       updateAgathionsView();
 
@@ -401,14 +447,24 @@
       await refreshAll();
     };
 
+    document.getElementById("addBonusBtn").onclick = () => {
+      const name = document.getElementById("bonusStatName").value.trim();
+      const val = Number(document.getElementById("bonusStatValue").value);
+      const type = document.getElementById("bonusStatType").value;
+      if (!name || isNaN(val)) return;
+
+      cache.bonus[name] = { value: val, type: type };
+      renderBonuses();
+      
+      document.getElementById("bonusStatName").value = "";
+      document.getElementById("bonusStatValue").value = "";
+    };
+
     document.getElementById("createColBtn").onclick = async () => {
       const name = document.getElementById("colName").value.trim();
       if (!name) return;
 
-      let bonus = {};
-      const raw = document.getElementById("colBonus").value.trim();
-      try { bonus = raw ? JSON.parse(raw) : {}; }
-      catch { alert("Bonus JSON не парсится"); return; }
+      let bonus = cache.bonus;
 
       const method = editState.colId ? "PUT" : "POST";
       const url = editState.colId ? `/api/collections/${editState.colId}` : "/api/collections";
@@ -491,7 +547,12 @@ document.getElementById("importOwnedBtn").onclick = async () => {
       document.getElementById("createColBtn").textContent = t("Create collection");
       document.getElementById("cancelColBtn").textContent = t("Cancel");
       document.getElementById("refreshColsBtn").textContent = t("Update list");
-      document.getElementById("data-bonus-desc").textContent = t("Bonus JSON (example: ...)");
+
+      document.getElementById("bonusStatName").placeholder = t("Stat name");
+      document.getElementById("bonusStatValue").placeholder = t("Value");
+      document.getElementById("bonusStatType").options[0].textContent = t("Flat");
+      document.getElementById("bonusStatType").options[1].textContent = t("Percent");
+      document.getElementById("addBonusBtn").textContent = t("Add bonus");
 
       document.getElementById("searchClasses").placeholder = t("Search classes...");
       document.getElementById("searchAgathions").placeholder = t("Search agathions...");
@@ -505,6 +566,7 @@ document.getElementById("importOwnedBtn").onclick = async () => {
       document.getElementById("searchCollections").oninput = renderCollectionsView;
 
       renderReqs();
+      renderBonuses();
       await refreshAll();
     })();
   </script>
