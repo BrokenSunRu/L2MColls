@@ -55,8 +55,24 @@ async function initLang() {
 
 function t(key) {
   if (typeof key !== "string") return key;
-  // Если ключ есть в словаре - возвращаем перевод, иначе оригинальный ключ
+  // If the key exists in the dictionary, return the translation, otherwise return the original key
   return i18n[key] || key;
+}
+
+// Sort array of keys considering localization (alphabet of the current language)
+function sortTranslated(items) {
+  // localeCompare applies the sorting rules for the provided language (ru or en)
+  return items.sort((a, b) => {
+    // Handle both flat strings and arrays of objects gracefully
+    const valA = (a && typeof a === 'object') ? (a.key || a.name || a.stat || a.id) : a;
+    const valB = (b && typeof b === 'object') ? (b.key || b.name || b.stat || b.id) : b;
+    
+    const strA = String(t(valA));
+    const strB = String(t(valB));
+    
+    // sensitivity: 'base' ignores case differences for accurate alphabetical sorting
+    return strA.localeCompare(strB, currentLang, { sensitivity: 'base' });
+  });
 }
 
 function getRarityColor(rarity) {

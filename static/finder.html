@@ -130,6 +130,10 @@
         container.innerHTML = `<small class="muted">${t("No stats yet")}</small>`;
         return;
       }
+      
+      // Отсортируем статы с учетом текущего языка перед выводом
+      sortTranslated(stats);
+
       container.innerHTML = stats.map(s => `
         <span class="pill" style="cursor:pointer;" onclick="setStat('${escapeHtml(s)}')">${escapeHtml(t(s))}</span>
       `).join("");
