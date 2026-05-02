@@ -1,5 +1,7 @@
 # Lineage 2M Collections Tracker
 
+*[🇷🇺 Читать на русском (Read in Russian)](README_ru.md)*
+
 A lightweight, local web application designed to help Lineage 2M players track their Classes, Agathions, and Collections. Built with Python (FastAPI) and vanilla HTML/JS/CSS, it provides a fast and responsive interface with a dark fantasy aesthetic.
 
 ## Core Features
@@ -48,10 +50,18 @@ A lightweight, local web application designed to help Lineage 2M players track t
 
 ## Suggested Workflow
 
-1. Go to the **Data** page and populate your database with the Classes and Agathions that exist in the game.
-2. Stay on the **Data** page and create Collections, adding the required classes/agathions and specifying the bonuses they yield.
-3. Go to the **Inventory** page and check the boxes for the items your character currently owns, setting their upgrade levels.
-4. Use the **Finder** page to type in a stat you want to boost. The app will calculate the fastest route to get that stat based on your current inventory.
+**For regular users:**
+1. **Load Database:** If someone shared a ready-to-use database with you, go to the **Data** page and click **Import JSON**. You generally don't need to manually edit anything on the Data page unless you want to add or fix something yourself!
+2. **Track Inventory:** Go to the **My Items** page and check the boxes for the items your character currently owns, setting their specific upgrade levels.
+3. **Find Upgrades:** Use the **Finder** page to type in a stat you want to boost. The app will show you which collections provide it and exactly what items you are missing.
+
+**How to update your local database without losing your inventory:**
+1. Go to **My Items** (or **Data**) and click **Export Owned JSON** to safely backup your personal inventory.
+2. Go to the **Data** page and click **Import JSON** to load the new, updated database file you received.
+3. Finally, click **Import Owned JSON** and select your previously saved inventory file to instantly restore all your checked items and upgrade levels!
+
+**For database maintainers:**
+- Use the **Data** page to manually populate the database with new Classes, Agathions, and Collections. Once done, use **Export JSON** to share your comprehensive work with others.
 
 ## License
 
