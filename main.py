@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = str(APP_DIR / "app.db")
+OWNED_DB_PATH = str(APP_DIR / "owned.db")
 STATIC_DIR = APP_DIR / "static"
 
 app = FastAPI(title="Classes/Agathions Collections Tracker")
@@ -49,6 +50,11 @@ def validate_agathion_rarity(r: str) -> None:
 def db_connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+
+    # Подключаем пользовательскую базу данных
+    owned_path_str = OWNED_DB_PATH.replace("\\", "/")
+    conn.execute(f"ATTACH DATABASE '{owned_path_str}' AS user_db;")
+
     return conn
 
 def get_db() -> Iterator[sqlite3.Connection]:
@@ -103,8 +109,13 @@ def db_init() -> None:
             UNIQUE(collection_id, req_type, req_id),
             FOREIGN KEY(collection_id) REFERENCES collections(id) ON DELETE CASCADE
         );
+        """
+    )
+    conn.executescript(
+        """
+        PRAGMA user_db.journal_mode=WAL;
 
-        CREATE TABLE IF NOT EXISTS owned(
+        CREATE TABLE IF NOT EXISTS user_db.owned(
             req_type TEXT NOT NULL CHECK(req_type IN ('class','agathion')),
             req_id INTEGER NOT NULL,
 
@@ -119,6 +130,14 @@ def db_init() -> None:
         );
         """
     )
+
+    # Автоматическая миграция: если таблица owned осталась в основной БД, переносим её
+    rows = conn.execute("SELECT name FROM main.sqlite_master WHERE type='table' AND name='owned';").fetchall()
+    if rows:
+        print("Migrating 'owned' table from app.db to owned.db...")
+        conn.execute("INSERT OR IGNORE INTO user_db.owned SELECT * FROM main.owned;")
+        conn.execute("DROP TABLE main.owned;")
+
     conn.commit()
     conn.close()
 
@@ -415,7 +434,7 @@ def api_create_class(payload: ClassIn, conn: sqlite3.Connection = Depends(get_db
 def api_delete_class(class_id: int, conn: sqlite3.Connection = Depends(get_db)):
     conn.execute("DELETE FROM classes WHERE id=?;", (class_id,))
     conn.execute("DELETE FROM collection_requirements WHERE req_type='class' AND req_id=?;", (class_id,))
-    conn.execute("DELETE FROM owned WHERE req_type='class' AND req_id=?;", (class_id,))
+    conn.execute("DELETE FROM user_db.owned WHERE req_type='class' AND req_id=?;", (class_id,))
     conn.commit()
     return {"ok": True}
 
@@ -496,7 +515,7 @@ def api_create_agathion(payload: AgathionIn, conn: sqlite3.Connection = Depends(
 def api_delete_agathion(ag_id: int, conn: sqlite3.Connection = Depends(get_db)):
     conn.execute("DELETE FROM agathions WHERE id=?;", (ag_id,))
     conn.execute("DELETE FROM collection_requirements WHERE req_type='agathion' AND req_id=?;", (ag_id,))
-    conn.execute("DELETE FROM owned WHERE req_type='agathion' AND req_id=?;", (ag_id,))
+    conn.execute("DELETE FROM user_db.owned WHERE req_type='agathion' AND req_id=?;", (ag_id,))
     conn.commit()
     return {"ok": True}
 
@@ -742,7 +761,7 @@ def api_list_owned(conn: sqlite3.Connection = Depends(get_db)):
     rows = conn.execute(
         """
         SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize
-        FROM owned
+        FROM user_db.owned
         ORDER BY req_type, req_id;
         """
     ).fetchall()
@@ -774,7 +793,7 @@ def api_owned_set(payload: OwnedSetIn, conn: sqlite3.Connection = Depends(get_db
     if payload.owned:
         conn.execute(
             """
-            INSERT INTO owned(req_type, req_id)
+            INSERT INTO user_db.owned(req_type, req_id)
             VALUES (?,?)
             ON CONFLICT(req_type, req_id) DO NOTHING;
             """,
@@ -782,7 +801,7 @@ def api_owned_set(payload: OwnedSetIn, conn: sqlite3.Connection = Depends(get_db
         )
     else:
         conn.execute(
-            "DELETE FROM owned WHERE req_type=? AND req_id=?;",
+            "DELETE FROM user_db.owned WHERE req_type=? AND req_id=?;",
             (payload.req_type, payload.req_id),
         )
 
@@ -804,7 +823,7 @@ def api_owned_set_bulk(payload: OwnedSetBulkIn, conn: sqlite3.Connection = Depen
         for r in rows:
             conn.execute(
                 """
-                INSERT INTO owned(req_type, req_id)
+                INSERT INTO user_db.owned(req_type, req_id)
                 VALUES (?,?)
                 ON CONFLICT(req_type, req_id) DO NOTHING;
                 """,
@@ -813,7 +832,7 @@ def api_owned_set_bulk(payload: OwnedSetBulkIn, conn: sqlite3.Connection = Depen
     else:
         for r in rows:
             conn.execute(
-                "DELETE FROM owned WHERE req_type=? AND req_id=?;",
+                "DELETE FROM user_db.owned WHERE req_type=? AND req_id=?;",
                 (payload.req_type, r["id"]),
             )
 
@@ -823,7 +842,7 @@ def api_owned_set_bulk(payload: OwnedSetBulkIn, conn: sqlite3.Connection = Depen
 @app.post("/api/owned/levels", response_model=Dict[str, Any])
 def api_owned_levels(payload: OwnedLevelsIn, conn: sqlite3.Connection = Depends(get_db)):
     exists = conn.execute(
-        "SELECT 1 FROM owned WHERE req_type=? AND req_id=?;",
+        "SELECT 1 FROM user_db.owned WHERE req_type=? AND req_id=?;",
         (payload.req_type, payload.req_id),
     ).fetchone()
     if not exists:
@@ -832,7 +851,7 @@ def api_owned_levels(payload: OwnedLevelsIn, conn: sqlite3.Connection = Depends(
     # Store only relevant fields by type, but we can store all safely.
     conn.execute(
         """
-        UPDATE owned SET
+        UPDATE user_db.owned SET
           class_ascend=?,
           class_elevate=?,
           ag_meld=?,
@@ -855,8 +874,8 @@ def api_owned_levels(payload: OwnedLevelsIn, conn: sqlite3.Connection = Depends(
 
 @app.delete("/api/owned", response_model=Dict[str, Any])
 def api_owned_clear(conn: sqlite3.Connection = Depends(get_db)):
-    # Полностью очищаем инвентарь (удаляем все записи из таблицы owned)
-    conn.execute("DELETE FROM owned;")
+    # Полностью очищаем инвентарь
+    conn.execute("DELETE FROM user_db.owned;")
     conn.commit()
     return {"ok": True}
 
@@ -909,7 +928,7 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
     owned_rows = conn.execute(
         """
         SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize
-        FROM owned;
+        FROM user_db.owned;
         """
     ).fetchall()
     owned_map: Dict[str, sqlite3.Row] = {f"{r['req_type']}:{r['req_id']}": r for r in owned_rows}
@@ -1091,7 +1110,7 @@ def api_export(conn: sqlite3.Connection = Depends(get_db)) -> ExportPayload:
     owned_rows = conn.execute(
         """
         SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize
-        FROM owned
+        FROM user_db.owned
         ORDER BY req_type, req_id;
         """
     ).fetchall()
@@ -1248,7 +1267,7 @@ def api_import(payload: ExportPayload, conn: sqlite3.Connection = Depends(get_db
             rid = int(rr["id"])
             conn.execute(
                 """
-                INSERT INTO owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize)
+                INSERT INTO user_db.owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize)
                 VALUES ('class', ?, ?, ?, 0, 0, 0)
                 ON CONFLICT(req_type, req_id) DO UPDATE SET
                   class_ascend=excluded.class_ascend,
@@ -1263,7 +1282,7 @@ def api_import(payload: ExportPayload, conn: sqlite3.Connection = Depends(get_db
             rid = int(rr["id"])
             conn.execute(
                 """
-                INSERT INTO owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize)
+                INSERT INTO user_db.owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize)
                 VALUES ('agathion', ?, 0, 0, ?, ?, ?)
                 ON CONFLICT(req_type, req_id) DO UPDATE SET
                   ag_meld=excluded.ag_meld,
@@ -1284,7 +1303,7 @@ def api_export_owned(conn: sqlite3.Connection = Depends(get_db)) -> ExportOwnedP
     owned_rows = conn.execute(
         """
         SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize
-        FROM owned
+        FROM user_db.owned
         ORDER BY req_type, req_id;
         """
     ).fetchall()
@@ -1312,7 +1331,7 @@ def api_import_owned(payload: ExportOwnedPayload, conn: sqlite3.Connection = Dep
         raise HTTPException(status_code=400, detail="Unsupported version")
 
     # Очищаем таблицу перед импортом
-    conn.execute("DELETE FROM owned;")
+    conn.execute("DELETE FROM user_db.owned;")
 
     imported_owned = 0
     for o in payload.owned:
@@ -1323,7 +1342,7 @@ def api_import_owned(payload: ExportOwnedPayload, conn: sqlite3.Connection = Dep
                 continue
             rid = int(rr["id"])
             conn.execute(
-                "INSERT INTO owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize) VALUES ('class', ?, ?, ?, 0, 0, 0)",
+                "INSERT INTO user_db.owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize) VALUES ('class', ?, ?, ?, 0, 0, 0)",
                 (rid, int(o.class_ascend or 0), int(o.class_elevate or 0))
             )
         else:
@@ -1332,7 +1351,7 @@ def api_import_owned(payload: ExportOwnedPayload, conn: sqlite3.Connection = Dep
                 continue
             rid = int(rr["id"])
             conn.execute(
-                "INSERT INTO owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize) VALUES ('agathion', ?, 0, 0, ?, ?, ?)",
+                "INSERT INTO user_db.owned(req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize) VALUES ('agathion', ?, 0, 0, ?, ?, ?)",
                 (rid, int(o.ag_meld or 0), int(o.ag_elevate or 0), int(o.ag_spiritualize or 0))
             )
         imported_owned += 1

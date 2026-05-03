@@ -56,7 +56,7 @@ A lightweight, local web application designed to help Lineage 2M players track t
 3. **Find Upgrades:** Use the **Finder** page to type in a stat you want to boost. The app will show you which collections provide it and exactly what items you are missing.
 
 **How to update your local database without losing your inventory:**
-1. Go to **My Items** (or **Data**) and click **Export Owned JSON** to safely backup your personal inventory.
+1. Go to **My Items** and click **Export Owned JSON** to safely backup your personal inventory.
 2. Go to the **Data** page and click **Import JSON** to load the new, updated database file you received.
 3. Finally, click **Import Owned JSON** and select your previously saved inventory file to instantly restore all your checked items and upgrade levels!
 
