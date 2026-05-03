@@ -22,12 +22,17 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="recommendationsCard">
+      <h2 id="fnd-recommend-h2"></h2>
+      <div id="recommendList"></div>
+    </div>
+
+    <div class="card" id="openedCard" style="display:none;">
       <h2 id="fnd-opened-h2"></h2>
       <div id="opened"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="missingCard" style="display:none;">
       <h2 id="fnd-missing-h2"></h2>
       <div id="missing"></div>
     </div>
@@ -139,10 +144,68 @@
       `).join("");
     }
 
+    function renderRecommendations(items) {
+      if (!items || items.length === 0) return `<small class="muted">${t("Nothing found")}</small>`;
+      return items.map(x => {
+        const bonusesHtml = Object.entries(x.provides).map(([k, v]) => {
+          return `<span class="pill" style="margin-bottom:4px; display:inline-block;">${escapeHtml(t(k))}: +${escapeHtml(formatProvides(v))}</span>`;
+        }).join(" ");
+        
+        return `
+        <div class="card">
+          <div class="row" style="justify-content:space-between; align-items:flex-start;">
+            <div style="flex:1;"><b>${escapeHtml(t(x.collection_name))}</b></div>
+            <div style="text-align:right; max-width:60%;">${bonusesHtml}</div>
+          </div>
+          <div style="margin-top:10px;">
+            <small class="muted">${t("What is not met:")}</small>
+            <div style="margin-top:6px;">
+              ${x.missing.map(r => {
+                const imgName = r.name.toLowerCase().replace(/\\s+/g, '_');
+                return `
+                <div class="card" style="margin:8px 0 0 0; display:flex; gap:12px; align-items:center;">
+                  <img src="/static/pics/${escapeHtml(imgName)}.png" style="width:64px; height:auto; border-radius:6px; object-fit:contain;" onerror="this.style.display='none'" />
+                  <div style="flex:1;">
+                    <div><b><span style="color: ${getRarityColor(r.rarity)};">${escapeHtml(t(r.rarity))}</span> ${escapeHtml(t(r.req_type))}: ${escapeHtml(t(r.name))}</b></div>
+                    <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">
+                      ${renderReqDiff(r)}
+                    </div>
+                  </div>
+                </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        </div>
+        `;
+      }).join("");
+    }
+
     // Fetches search results and splits them into "opened" and "missing" arrays to render
     async function run() {
       const stat = document.getElementById("stat").value.trim();
-      if (!stat) return;
+      
+      // Подсвечиваем активный стат (кнопку), если он выбран
+      document.querySelectorAll('.stat-pill').forEach(el => {
+        if (stat && el.getAttribute('data-stat') === stat) {
+          el.style.background = '#3b82f6';
+          el.style.color = '#ffffff';
+        } else {
+          el.style.background = '';
+          el.style.color = '';
+        }
+      });
+
+      if (!stat) {
+        document.getElementById("openedCard").style.display = "none";
+        document.getElementById("missingCard").style.display = "none";
+        document.getElementById("recommendationsCard").style.display = "block";
+        return;
+      }
+      
+      document.getElementById("recommendationsCard").style.display = "none";
+      document.getElementById("openedCard").style.display = "block";
+      document.getElementById("missingCard").style.display = "block";
       
       const res = await apiGet(`/api/finder?stat=${encodeURIComponent(stat)}`);
       const opened = res.filter(x => x.unlocked);
@@ -162,7 +225,12 @@
     }
 
     window.setStat = (s) => {
-      document.getElementById("stat").value = s;
+      const input = document.getElementById("stat");
+      if (input.value.trim() === s) {
+        input.value = ""; // Если стат уже выбран — отжимаем
+      } else {
+        input.value = s; // Иначе — выбираем
+      }
       run();
     };
 
@@ -179,8 +247,13 @@
       sortTranslated(stats);
 
       container.innerHTML = stats.map(s => `
-        <span class="pill" style="cursor:pointer;" onclick="setStat('${escapeHtml(s)}')">${escapeHtml(t(s))}</span>
+        <span class="pill stat-pill" data-stat="${escapeHtml(s)}" style="cursor:pointer; transition:0.2s;" onclick="setStat('${escapeHtml(s)}')">${escapeHtml(t(s))}</span>
       `).join("");
+    }
+
+    async function loadRecommendations() {
+      const res = await apiGet("/api/recommend");
+      document.getElementById("recommendList").innerHTML = renderRecommendations(res);
     }
 
     (async () => {
@@ -192,9 +265,15 @@
       document.getElementById("fnd-avail-desc").textContent = t("Available stats in DB:");
       document.getElementById("fnd-opened-h2").textContent = t("Collections already unlocked");
       document.getElementById("fnd-missing-h2").textContent = t("Collections that give this stat but are not unlocked");
+      document.getElementById("fnd-recommend-h2").textContent = t("Easiest collections to complete");
 
       await loadStats();
+      await loadRecommendations();
       document.getElementById("go").onclick = run;
+      // Автоматически возвращать на рекомендации, если пользователь полностью стер стат
+      document.getElementById("stat").addEventListener("input", () => {
+        if (!document.getElementById("stat").value.trim()) run();
+      });
     })();
   </script>
 </body>

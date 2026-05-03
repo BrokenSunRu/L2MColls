@@ -957,7 +957,8 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
     ).fetchall()
     owned_map: Dict[str, sqlite3.Row] = {f"{r['req_type']}:{r['req_id']}": r for r in owned_rows}
 
-    out: List[FinderResultOut] = []
+    out_scored: List[tuple[int, FinderResultOut]] = []
+    RARITY_SCORE = {"Common": 1, "Rare": 2, "Unique": 3, "Epic": 4, "Legend": 5, "Mythic": 6, "Zenith": 7}
 
     # Iterate over all collections and see which ones provide the requested stat
     for c in collections:
@@ -980,6 +981,7 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
 
         missing_list: List[FinderResultReq] = []
         unlocked = True
+        score = 0
 
         for r in reqs:
             key = f"{r['req_type']}:{r['req_id']}"
@@ -1012,6 +1014,20 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
             if not ok:
                 unlocked = False
                 req_name, req_rarity = _info_by_req(conn, r["req_type"], int(r["req_id"]))
+                r_weight = RARITY_SCORE.get(req_rarity, 1)
+                
+                if have is None:
+                    score += r_weight * 100
+                    score += (need_ca + need_ce + need_am + need_ae + need_as) * r_weight * 10
+                else:
+                    if r["req_type"] == "class":
+                        score += max(0, need_ca - have_ca) * r_weight * 10
+                        score += max(0, need_ce - have_ce) * r_weight * 10
+                    else:
+                        score += max(0, need_am - have_am) * r_weight * 10
+                        score += max(0, need_ae - have_ae) * r_weight * 10
+                        score += max(0, need_as - have_as) * r_weight * 10
+
                 missing_list.append(
                     FinderResultReq(
                         req_type=r["req_type"],
@@ -1034,7 +1050,8 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
                     )
                 )
 
-        out.append(
+        out_scored.append((
+            score,
             FinderResultOut(
                 collection_id=int(c["id"]),
                 collection_name=c["name"],
@@ -1042,9 +1059,95 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
                 unlocked=unlocked,
                 missing=missing_list,
             )
-        )
+        ))
 
-    return out
+    # Сортируем: сначала открытые коллекции (штраф 0), затем от самых легких к самым сложным
+    out_scored.sort(key=lambda x: (x[0], x[1].collection_name))
+    return [x[1] for x in out_scored]
+
+@app.get("/api/recommend", response_model=List[FinderResultOut])
+def api_recommend(conn: sqlite3.Connection = Depends(get_db)):
+    collections = conn.execute("SELECT id, name, bonus_json FROM collections ORDER BY name;").fetchall()
+
+    owned_rows = conn.execute(
+        """
+        SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize
+        FROM user_db.owned;
+        """
+    ).fetchall()
+    owned_map: Dict[str, sqlite3.Row] = {f"{r['req_type']}:{r['req_id']}": r for r in owned_rows}
+
+    # Вес редкости: чем выше грейд, тем сложнее его получить/улучшить
+    RARITY_SCORE = {"Common": 1, "Rare": 2, "Unique": 3, "Epic": 4, "Legend": 5, "Mythic": 6, "Zenith": 7}
+
+    results = []
+
+    for c in collections:
+        bonus = json.loads(c["bonus_json"]) if c["bonus_json"] else {}
+        
+        reqs = conn.execute(
+            """
+            SELECT req_type, req_id,
+                   min_class_ascend, min_class_elevate,
+                   min_ag_meld, min_ag_elevate, min_ag_spiritualize
+            FROM collection_requirements
+            WHERE collection_id=?
+            ORDER BY req_type, req_id;
+            """,
+            (c["id"],),
+        ).fetchall()
+
+        missing_list: List[FinderResultReq] = []
+        unlocked = True
+        score = 0
+
+        for r in reqs:
+            key = f"{r['req_type']}:{r['req_id']}"
+            have = owned_map.get(key)
+            req_name, req_rarity = _info_by_req(conn, r["req_type"], int(r["req_id"]))
+            r_weight = RARITY_SCORE.get(req_rarity, 1)
+
+            have_ca = int(have["class_ascend"]) if have else 0
+            have_ce = int(have["class_elevate"]) if have else 0
+            have_am = int(have["ag_meld"]) if have else 0
+            have_ae = int(have["ag_elevate"]) if have else 0
+            have_as = int(have["ag_spiritualize"]) if have else 0
+
+            need_ca = int(r["min_class_ascend"])
+            need_ce = int(r["min_class_elevate"])
+            need_am = int(r["min_ag_meld"])
+            need_ae = int(r["min_ag_elevate"])
+            need_as = int(r["min_ag_spiritualize"])
+
+            item_ok = True
+            if have is None:
+                item_ok = False
+                # Сильный штраф за отсутствие предмета
+                score += r_weight * 100
+                score += (need_ca + need_ce + need_am + need_ae + need_as) * r_weight * 10
+            else:
+                if r["req_type"] == "class":
+                    if have_ca < need_ca or have_ce < need_ce:
+                        item_ok = False
+                        score += max(0, need_ca - have_ca) * r_weight * 10
+                        score += max(0, need_ce - have_ce) * r_weight * 10
+                else:
+                    if have_am < need_am or have_ae < need_ae or have_as < need_as:
+                        item_ok = False
+                        score += max(0, need_am - have_am) * r_weight * 10
+                        score += max(0, need_ae - have_ae) * r_weight * 10
+                        score += max(0, need_as - have_as) * r_weight * 10
+
+            if not item_ok:
+                unlocked = False
+                # Добавляем в missing_list (так же, как в api_finder)
+                missing_list.append(FinderResultReq(req_type=r["req_type"], req_id=int(r["req_id"]), name=req_name, rarity=req_rarity, missing=(have is None), need_class_ascend=need_ca, need_class_elevate=need_ce, need_ag_meld=need_am, need_ag_elevate=need_ae, need_ag_spiritualize=need_as, have_class_ascend=have_ca, have_class_elevate=have_ce, have_ag_meld=have_am, have_ag_elevate=have_ae, have_ag_spiritualize=have_as))
+        
+        if not unlocked and len(reqs) > 0:
+            results.append((score, FinderResultOut(collection_id=int(c["id"]), collection_name=c["name"], provides=bonus, unlocked=False, missing=missing_list)))
+
+    results.sort(key=lambda x: x[0])
+    return [x[1] for x in results[:10]]
 
 
 # -----------------------------------------------------------------------------
