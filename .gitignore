@@ -1,3 +1,7 @@
 owned.db
 owned.db-shm
 owned.db-wal
+
+# Python cache
+__pycache__/
+*.py[cod]
