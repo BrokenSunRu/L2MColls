@@ -35,6 +35,7 @@ A lightweight, local web application designed to help Lineage 2M players track t
    ```
 
 3. **Start the local server:**
+   You can simply double-click the `run.bat` file (on Windows) or run the following command in your terminal:
    ```bash
    python -m uvicorn main:app --reload
    ```
