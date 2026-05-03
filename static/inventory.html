@@ -122,30 +122,37 @@
         const ascendDisabled = !showAsc || !checked;
         const elevateDisabled = !showElv || !checked;
 
+        const imgName = c.name.toLowerCase().replace(/\s+/g, '_');
+
         return `
           <div class="card" style="margin-bottom:10px;">
             <div class="row" style="justify-content:space-between;">
-              <label class="row" style="gap:10px;">
+              <label class="row" style="gap:10px; align-items:center;">
                 <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleOwned('class', ${c.id}, this.checked)" />
-                <span>${escapeHtml(t(c.name))} <span class="pill">${escapeHtml(t(c.rarity))}</span> <span class="pill">#${c.id}</span></span>
+                <img src="/static/pics/${escapeHtml(imgName)}.png" style="width:48px; height:auto; border-radius:6px; object-fit:contain;" onerror="this.style.display='none'" />
+                <span>${escapeHtml(t(c.name))} <span class="pill" style="color:${getRarityColor(c.rarity)};">${escapeHtml(t(c.rarity))}</span> <span class="pill">#${c.id}</span></span>
               </label>
             </div>
 
             ${(showAsc || showElv) ? `
-              <div class="row" style="margin-top:10px;">
+              <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px; align-items: flex-start;">
                 ${showAsc ? `
-                  <div class="pill">${t("Ascend")}</div>
-                  <input type="number" min="0" step="1" value="${ascend}" ${ascendDisabled ? "disabled" : ""} onchange="setLevelsClass(${c.id})" id="clsAsc_${c.id}" />
+                  <div class="row" style="align-items:center;">
+                    <div class="pill" style="display:flex; align-items:center; gap:6px; min-width:180px;"><img src="/static/pics/ascend${ascend > 0 ? ascend : 1}.png" style="width:24px; height:24px; ${ascend === 0 ? 'filter:grayscale(100%); opacity:0.5;' : ''}" onerror="this.style.display='none'" />${t("Ascend")}</div>
+                    <input type="number" min="0" step="1" value="${ascend}" ${ascendDisabled ? "disabled" : ""} onchange="setLevelsClass(${c.id})" id="clsAsc_${c.id}" />
+                  </div>
                 ` : ``}
 
                 ${showElv ? `
-                  <div class="pill">${t("Elevate")}</div>
-                  <input type="number" min="0" step="1" value="${elevate}" ${elevateDisabled ? "disabled" : ""} onchange="setLevelsClass(${c.id})" id="clsElv_${c.id}" />
+                  <div class="row" style="align-items:center;">
+                    <div class="pill" style="display:flex; align-items:center; gap:6px; min-width:180px;"><img src="/static/pics/elevate${elevate > 0 ? elevate : 1}.png" style="width:24px; height:24px; ${elevate === 0 ? 'filter:grayscale(100%); opacity:0.5;' : ''}" onerror="this.style.display='none'" />${t("Elevate")}</div>
+                    <input type="number" min="0" step="1" value="${elevate}" ${elevateDisabled ? "disabled" : ""} onchange="setLevelsClass(${c.id})" id="clsElv_${c.id}" />
+                  </div>
                 ` : ``}
               </div>
-              <small class="muted">${t("Item points = (Ascend if any) + (Elevate if any)")}</small>
+              <small class="muted" style="display:block; margin-top:8px;">${t("Item points = (Ascend if any) + (Elevate if any)")}</small>
             ` : `
-              <small class="muted">${t("This class has no upgrades")}</small>
+              <small class="muted" style="display:block; margin-top:8px;">${t("This class has no upgrades")}</small>
             `}
           </div>
         `;
@@ -168,35 +175,44 @@
         const elevateDisabled = !showE || !checked;
         const spirDisabled = !showS || !checked;
 
+        const imgName = a.name.toLowerCase().replace(/\s+/g, '_');
+
         return `
           <div class="card" style="margin-bottom:10px;">
             <div class="row" style="justify-content:space-between;">
-              <label class="row" style="gap:10px;">
+              <label class="row" style="gap:10px; align-items:center;">
                 <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleOwned('agathion', ${a.id}, this.checked)" />
-                <span>${escapeHtml(t(a.name))} <span class="pill">${escapeHtml(t(a.rarity))}</span> <span class="pill">#${a.id}</span></span>
+                <img src="/static/pics/${escapeHtml(imgName)}.png" style="width:48px; height:auto; border-radius:6px; object-fit:contain;" onerror="this.style.display='none'" />
+                <span>${escapeHtml(t(a.name))} <span class="pill" style="color:${getRarityColor(a.rarity)};">${escapeHtml(t(a.rarity))}</span> <span class="pill">#${a.id}</span></span>
               </label>
             </div>
 
             ${(showM || showE || showS) ? `
-              <div class="row" style="margin-top:10px;">
+              <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px; align-items: flex-start;">
                 ${showM ? `
-                  <div class="pill">${t("Meld")}</div>
-                  <input type="number" min="0" step="1" value="${meld}" ${meldDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agMeld_${a.id}" />
+                  <div class="row" style="align-items:center;">
+                    <div class="pill" style="display:flex; align-items:center; gap:6px; min-width:180px;"><img src="/static/pics/meld${meld > 0 ? meld : 1}.png" style="width:24px; height:24px; ${meld === 0 ? 'filter:grayscale(100%); opacity:0.5;' : ''}" onerror="this.style.display='none'" />${t("Meld")}</div>
+                    <input type="number" min="0" step="1" value="${meld}" ${meldDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agMeld_${a.id}" />
+                  </div>
                 ` : ``}
 
                 ${showE ? `
-                  <div class="pill">${t("Elevate")}</div>
-                  <input type="number" min="0" step="1" value="${elevate}" ${elevateDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agElv_${a.id}" />
+                  <div class="row" style="align-items:center;">
+                    <div class="pill" style="display:flex; align-items:center; gap:6px; min-width:180px;"><img src="/static/pics/elevate${elevate > 0 ? elevate : 1}.png" style="width:24px; height:24px; ${elevate === 0 ? 'filter:grayscale(100%); opacity:0.5;' : ''}" onerror="this.style.display='none'" />${t("Elevate")}</div>
+                    <input type="number" min="0" step="1" value="${elevate}" ${elevateDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agElv_${a.id}" />
+                  </div>
                 ` : ``}
 
                 ${showS ? `
-                  <div class="pill">${t("Spiritualize")}</div>
-                  <input type="number" min="0" step="1" value="${spir}" ${spirDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agSp_${a.id}" />
+                  <div class="row" style="align-items:center;">
+                    <div class="pill" style="display:flex; align-items:center; gap:6px; min-width:180px;"><img src="/static/pics/spiritualize${spir > 0 ? spir : 1}.png" style="width:24px; height:24px; ${spir === 0 ? 'filter:grayscale(100%); opacity:0.5;' : ''}" onerror="this.style.display='none'" />${t("Spiritualize")}</div>
+                    <input type="number" min="0" step="1" value="${spir}" ${spirDisabled ? "disabled" : ""} onchange="setLevelsAg(${a.id})" id="agSp_${a.id}" />
+                  </div>
                 ` : ``}
               </div>
-              <small class="muted">${t("Item points = sum of available upgrades")}</small>
+              <small class="muted" style="display:block; margin-top:8px;">${t("Item points = sum of available upgrades")}</small>
             ` : `
-              <small class="muted">${t("This agathion has no upgrades")}</small>
+              <small class="muted" style="display:block; margin-top:8px;">${t("This agathion has no upgrades")}</small>
             `}
           </div>
         `;
