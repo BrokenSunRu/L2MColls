@@ -1065,6 +1065,7 @@ def api_missing_translations(conn: sqlite3.Connection = Depends(get_db)):
 
     classes = [r["name"] for r in conn.execute("SELECT name FROM classes;").fetchall()]
     agathions = [r["name"] for r in conn.execute("SELECT name FROM agathions;").fetchall()]
+    collections = [r["name"] for r in conn.execute("SELECT name FROM collections;").fetchall()]
     
     stats = set()
     for r in conn.execute("SELECT bonus_json FROM collections;").fetchall():
@@ -1078,11 +1079,13 @@ def api_missing_translations(conn: sqlite3.Connection = Depends(get_db)):
 
     missing_classes = [c for c in classes if c not in ru_data]
     missing_agathions = [a for a in agathions if a not in ru_data]
+    missing_collections = [c for c in collections if c not in ru_data]
     missing_stats = [s for s in stats if s not in ru_data]
 
     return {
         "Classes": missing_classes,
         "Agathions": missing_agathions,
+        "Collections": missing_collections,
         "Stats": sorted(list(missing_stats))
     }
 

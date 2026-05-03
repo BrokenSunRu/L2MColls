@@ -570,6 +570,7 @@ document.getElementById("checkMissingBtn").onclick = async () => {
   let out = "";
   if (res.Classes.length) out += `  "_new_classes_": "---",\n` + formatJsonLines(res.Classes) + "\n\n";
   if (res.Agathions.length) out += `  "_new_agathions_": "---",\n` + formatJsonLines(res.Agathions) + "\n\n";
+  if (res.Collections && res.Collections.length) out += `  "_new_collections_": "---",\n` + formatJsonLines(res.Collections) + "\n\n";
   if (res.Stats.length) out += `  "_new_stats_": "---",\n` + formatJsonLines(res.Stats) + "\n\n";
 
   if (!out) {
