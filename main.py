@@ -905,6 +905,20 @@ def api_owned_clear(conn: sqlite3.Connection = Depends(get_db)):
 # Routes: Finder
 # -----------------------------------------------------------------------------
 
+RARITY_W = {"Common": 1, "Rare": 10, "Unique": 100, "Epic": 1500, "Legend": 15000, "Mythic": 150000, "Zenith": 1000000}
+K_UP = {"Common": 0.2, "Rare": 0.3, "Unique": 0.5, "Epic": 0.8, "Legend": 0.4, "Mythic": 0.5, "Zenith": 0.6}
+L_MULT = {1: 1.0, 2: 3.0, 3: 8.0}
+
+def calc_upgrade_penalty(rarity: str, current_lvl: int, needed_lvl: int) -> float:
+    w = RARITY_W.get(rarity, 1)
+    k = K_UP.get(rarity, 0.5)
+    penalty = 0.0
+    for lvl in range(current_lvl + 1, needed_lvl + 1):
+        # Если уровень > 3, делаем линейный рост множителя как страховку
+        l_m = L_MULT.get(lvl, 8.0 + (lvl - 3) * 5.0)
+        penalty += w * k * l_m
+    return penalty
+
 # Helper to fetch the actual name of an item based on its ID
 def _name_by_req(conn: sqlite3.Connection, req_type: str, req_id: int) -> str:
     if req_type == "class":
@@ -957,8 +971,7 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
     ).fetchall()
     owned_map: Dict[str, sqlite3.Row] = {f"{r['req_type']}:{r['req_id']}": r for r in owned_rows}
 
-    out_scored: List[tuple[int, FinderResultOut]] = []
-    RARITY_SCORE = {"Common": 1, "Rare": 2, "Unique": 3, "Epic": 4, "Legend": 5, "Mythic": 6, "Zenith": 7}
+    out_scored: List[tuple[float, FinderResultOut]] = []
 
     # Iterate over all collections and see which ones provide the requested stat
     for c in collections:
@@ -1014,19 +1027,18 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
             if not ok:
                 unlocked = False
                 req_name, req_rarity = _info_by_req(conn, r["req_type"], int(r["req_id"]))
-                r_weight = RARITY_SCORE.get(req_rarity, 1)
+                r_weight = RARITY_W.get(req_rarity, 1)
                 
                 if have is None:
-                    score += r_weight * 100
-                    score += (need_ca + need_ce + need_am + need_ae + need_as) * r_weight * 10
+                    score += r_weight * 10
                 else:
                     if r["req_type"] == "class":
-                        score += max(0, need_ca - have_ca) * r_weight * 10
-                        score += max(0, need_ce - have_ce) * r_weight * 10
+                        if have_ca < need_ca: score += calc_upgrade_penalty(req_rarity, have_ca, need_ca)
+                        if have_ce < need_ce: score += calc_upgrade_penalty(req_rarity, have_ce, need_ce)
                     else:
-                        score += max(0, need_am - have_am) * r_weight * 10
-                        score += max(0, need_ae - have_ae) * r_weight * 10
-                        score += max(0, need_as - have_as) * r_weight * 10
+                        if have_am < need_am: score += calc_upgrade_penalty(req_rarity, have_am, need_am)
+                        if have_ae < need_ae: score += calc_upgrade_penalty(req_rarity, have_ae, need_ae)
+                        if have_as < need_as: score += calc_upgrade_penalty(req_rarity, have_as, need_as)
 
                 missing_list.append(
                     FinderResultReq(
@@ -1077,9 +1089,6 @@ def api_recommend(conn: sqlite3.Connection = Depends(get_db)):
     ).fetchall()
     owned_map: Dict[str, sqlite3.Row] = {f"{r['req_type']}:{r['req_id']}": r for r in owned_rows}
 
-    # Вес редкости: чем выше грейд, тем сложнее его получить/улучшить
-    RARITY_SCORE = {"Common": 1, "Rare": 2, "Unique": 3, "Epic": 4, "Legend": 5, "Mythic": 6, "Zenith": 7}
-
     results = []
 
     for c in collections:
@@ -1105,7 +1114,7 @@ def api_recommend(conn: sqlite3.Connection = Depends(get_db)):
             key = f"{r['req_type']}:{r['req_id']}"
             have = owned_map.get(key)
             req_name, req_rarity = _info_by_req(conn, r["req_type"], int(r["req_id"]))
-            r_weight = RARITY_SCORE.get(req_rarity, 1)
+            r_weight = RARITY_W.get(req_rarity, 1)
 
             have_ca = int(have["class_ascend"]) if have else 0
             have_ce = int(have["class_elevate"]) if have else 0
@@ -1123,20 +1132,19 @@ def api_recommend(conn: sqlite3.Connection = Depends(get_db)):
             if have is None:
                 item_ok = False
                 # Сильный штраф за отсутствие предмета
-                score += r_weight * 100
-                score += (need_ca + need_ce + need_am + need_ae + need_as) * r_weight * 10
+                score += r_weight * 10
             else:
                 if r["req_type"] == "class":
                     if have_ca < need_ca or have_ce < need_ce:
                         item_ok = False
-                        score += max(0, need_ca - have_ca) * r_weight * 10
-                        score += max(0, need_ce - have_ce) * r_weight * 10
+                        if have_ca < need_ca: score += calc_upgrade_penalty(req_rarity, have_ca, need_ca)
+                        if have_ce < need_ce: score += calc_upgrade_penalty(req_rarity, have_ce, need_ce)
                 else:
                     if have_am < need_am or have_ae < need_ae or have_as < need_as:
                         item_ok = False
-                        score += max(0, need_am - have_am) * r_weight * 10
-                        score += max(0, need_ae - have_ae) * r_weight * 10
-                        score += max(0, need_as - have_as) * r_weight * 10
+                        if have_am < need_am: score += calc_upgrade_penalty(req_rarity, have_am, need_am)
+                        if have_ae < need_ae: score += calc_upgrade_penalty(req_rarity, have_ae, need_ae)
+                        if have_as < need_as: score += calc_upgrade_penalty(req_rarity, have_as, need_as)
 
             if not item_ok:
                 unlocked = False
