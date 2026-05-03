@@ -63,6 +63,10 @@ A lightweight, local web application designed to help Lineage 2M players track t
 **For database maintainers:**
 - Use the **Data** page to manually populate the database with new Classes, Agathions, and Collections. Once done, use **Export JSON** to share your comprehensive work with others.
 
+## Acknowledgments
+
+This application was created entirely with the assistance of Google's Gemini AI.
+
 ## License
 
 This is a personal utility tool. Feel free to modify and adapt it to your needs!

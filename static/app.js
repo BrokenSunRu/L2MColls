@@ -1,3 +1,4 @@
+// Wrapper for making GET requests to the backend with basic error handling
 async function apiGet(url) {
   const r = await fetch(url);
   if (!r.ok) {
@@ -12,6 +13,7 @@ async function apiGet(url) {
   return r.json();
 }
 
+// Wrapper for making POST/PUT/DELETE requests to the backend
 async function apiSend(url, method, bodyObj) {
   const r = await fetch(url, {
     method,
@@ -30,6 +32,7 @@ async function apiSend(url, method, bodyObj) {
   return r.json();
 }
 
+// Prevent XSS attacks by escaping unsafe HTML characters
 function escapeHtml(s) {
   return String(s)
     .replaceAll("&","&amp;")
@@ -42,6 +45,7 @@ function escapeHtml(s) {
 let i18n = {};
 const currentLang = localStorage.getItem("lang") || "en";
 
+// Loads language dictionary from static JSON file if not using English (default)
 async function initLang() {
   if (currentLang !== "en") {
     try {
@@ -53,6 +57,7 @@ async function initLang() {
   }
 }
 
+// Translation helper: searches the loaded dictionary for the key, returns original if missing
 function t(key) {
   if (typeof key !== "string") return key;
   // If the key exists in the dictionary, return the translation, otherwise return the original key
@@ -75,6 +80,7 @@ function sortTranslated(items) {
   });
 }
 
+// Returns the corresponding hex color code for a given item rarity
 function getRarityColor(rarity) {
   const colors = {
     "Zenith": "#2EE5B5",
@@ -88,10 +94,12 @@ function getRarityColor(rarity) {
   return colors[rarity] || "";
 }
 
+// Retrieves the saved UI theme from browser local storage
 function getTheme() {
   return localStorage.getItem("theme") || "dark";
 }
 
+// Applies the CSS theme attribute to the main HTML document
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme === "light" ? "light" : "dark");
   localStorage.setItem("theme", theme);
@@ -110,6 +118,7 @@ function toggleLang() {
   location.reload();
 }
 
+// Generates the navigation header HTML
 function navHtml() {
   const theme = getTheme();
   return `
@@ -126,6 +135,7 @@ function navHtml() {
   </header>`;
 }
 
+// Initializes application globals: translations, themes, and navigation bar
 async function mountNav() {
   await initLang();
   applyTheme(getTheme());
@@ -137,6 +147,7 @@ async function mountNav() {
   if (langBtn) langBtn.onclick = toggleLang;
 }
 
+// Triggers a browser download of the user's inventory encoded as JSON
 async function doExportOwned() {
   try {
     const data = await apiGet('/api/export_owned');
@@ -152,6 +163,7 @@ async function doExportOwned() {
   }
 }
 
+// Uploads a user inventory JSON file and sends it to the backend to update `owned.db`
 async function doImportOwned(file) {
   if (!file) return;
   try {

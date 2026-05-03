@@ -125,10 +125,12 @@
 
   <script src="/static/app.js"></script>
   <script>
+    // Local state for UI components: data caches and currently editing item trackers
     let metaCache = null;
     let cache = { classes: [], agathions: [], reqs: [], collections: [], bonus: {} };
     let editState = { classId: null, agId: null, colId: null };
 
+    // Simple formatter for displaying requirement conditions
     function reqPreview(r) {
       if (r.req_type === "class") {
         return `${t("class")} #${r.req_id} (${t("Ascend")}>=${r.min_class_ascend}, ${t("Elevate")}>=${r.min_class_elevate})`;
@@ -136,6 +138,7 @@
       return `${t("agathion")} #${r.req_id} (${t("Meld")}>=${r.min_ag_meld}, ${t("Elevate")}>=${r.min_ag_elevate}, ${t("Spiritualize")}>=${r.min_ag_spiritualize})`;
     }
 
+    // Updates UI for requirements inside the 'Create Collection' section
     function renderReqs() {
       const el = document.getElementById("reqList");
       if (cache.reqs.length === 0) {
@@ -155,6 +158,7 @@
       renderReqs();
     };
 
+    // Updates UI for bonuses inside the 'Create Collection' section
     function renderBonuses() {
       const el = document.getElementById("bonusList");
       const keys = Object.keys(cache.bonus);
@@ -179,6 +183,7 @@
       renderBonuses();
     };
 
+    // Prepares HTML structure for listing classes
     function renderClasses(items) {
       if (!items.length) return `<small class="muted">${t("Empty")}</small>`;
       return items.map(i => `
@@ -196,6 +201,7 @@
       `).join("");
     }
 
+    // Prepares HTML structure for listing agathions
     function renderAgathions(items) {
       if (!items.length) return `<small class="muted">${t("Empty")}</small>`;
       return items.map(i => `
@@ -214,6 +220,7 @@
       `).join("");
     }
 
+    // UI search filter updaters
     function updateClassesView() {
       const q = document.getElementById("searchClasses").value.toLowerCase().trim();
       let items = cache.classes;
@@ -232,6 +239,7 @@
     window.delAg = async (id) => { await apiSend(`/api/agathions/${id}`, "DELETE"); await refreshAll(); };
     window.delCollection = async (id) => { await apiSend(`/api/collections/${id}`, "DELETE"); await fetchCollections(); };
 
+    // Check if entered collection name already exists to prevent duplicate creation attempts
     function checkColName() {
       const val = document.getElementById("colName").value.trim().toLowerCase();
       const warn = document.getElementById("colExistsWarning");
@@ -245,6 +253,7 @@
     }
     document.getElementById("colName").addEventListener("input", checkColName);
 
+    // Fill the add form with class details to enable editing mode
     window.editClass = (id) => {
       const c = cache.classes.find(x => x.id === id);
       if(!c) return;
@@ -266,6 +275,7 @@
       document.getElementById("cancelClassBtn").style.display = "none";
     };
 
+    // Fill the add form with agathion details to enable editing mode
     window.editAg = (id) => {
       const a = cache.agathions.find(x => x.id === id);
       if(!a) return;
@@ -289,6 +299,7 @@
       document.getElementById("cancelAgBtn").style.display = "none";
     };
 
+    // Fill the collection forms with existing data for editing
     window.editCol = (id) => {
       const c = cache.collections.find(x => x.id === id);
       if(!c) return;
@@ -345,6 +356,7 @@
       toggleReqFields();
     }
 
+    // Filtering and rendering logic for existing Collections in the database
     function renderCollectionsView() {
       const q = document.getElementById("searchCollections").value.toLowerCase().trim();
       let items = cache.collections;
@@ -394,6 +406,7 @@
       renderCollectionsView();
     }
 
+    // Refreshes the local component cache (classes, ags, options) from server
     async function refreshAll() {
       metaCache = await apiGet("/api/meta");
       document.getElementById("classRarity").innerHTML = metaCache.class_rarities.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(t(x))}</option>`).join("");
@@ -416,6 +429,7 @@
     document.getElementById("reqType").onchange = refreshReqIdOptions;
     document.getElementById("reqSearch").oninput = refreshReqIdOptions;
 
+    // Push new condition to the collection requirement list array
     document.getElementById("addReqBtn").onclick = async () => {
       const req_type = document.getElementById("reqType").value;
       const req_id = Number(document.getElementById("reqId").value);
@@ -439,6 +453,7 @@
       renderReqs();
     };
 
+    // Triggered when creating or saving a class
     document.getElementById("addClassBtn").onclick = async () => {
       const name = document.getElementById("className").value.trim();
       if (!name) return;
@@ -459,6 +474,7 @@
       await refreshAll();
     };
 
+    // Triggered when creating or saving an agathion
     document.getElementById("addAgBtn").onclick = async () => {
       const name = document.getElementById("agName").value.trim();
       if (!name) return;
@@ -480,6 +496,7 @@
       await refreshAll();
     };
 
+    // Push new stat bonus to the collection bonus associative array
     document.getElementById("addBonusBtn").onclick = () => {
       const name = document.getElementById("bonusStatName").value.trim();
       const val = Number(document.getElementById("bonusStatValue").value);
@@ -493,6 +510,7 @@
       document.getElementById("bonusStatValue").value = "";
     };
 
+    // Finalizes creating or modifying the Collection in the database
     document.getElementById("createColBtn").onclick = async () => {
       const name = document.getElementById("colName").value.trim();
       if (!name) return;

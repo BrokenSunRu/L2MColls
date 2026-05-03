@@ -46,16 +46,20 @@
 
   <script src="/static/app.js"></script>
   <script>
+    // Generate unique map keys for owned items (e.g. "class:12" or "agathion:5")
     function ownedKey(typeVal, id) { return `${typeVal}:${id}`; }
 
+    // Parse values from number inputs to ensure we only get clean integers >= 0
     function clampInt(v) {
       const n = Number(v);
       if (!Number.isFinite(n) || n < 0) return 0;
       return Math.floor(n);
     }
 
+    // Client-side cache variables for fast rendering without hitting DB constantly
     let invCache = { classes: [], agathions: [], owned: new Map() };
 
+    // Fetch game items (classes/agathions) and setup UI filters
     async function initData() {
       document.getElementById("invSearch").oninput = renderInventory;
       document.getElementById("invRarity").onchange = renderInventory;
@@ -76,12 +80,14 @@
         Array.from(allRarities).map(x => `<option value="${escapeHtml(x)}">${escapeHtml(t(x))}</option>`).join("");
     }
 
+    // Fetch the user's specific saved inventory progress
     async function fetchOwned() {
       const ownedRows = await apiGet("/api/owned");
       invCache.owned.clear();
       for (const r of ownedRows) invCache.owned.set(ownedKey(r.req_type, r.req_id), r);
     }
 
+    // Main render function for filtering items and drawing HTML cards
     function renderInventory() {
       const search = document.getElementById("invSearch").value.toLowerCase().trim();
       const rarity = document.getElementById("invRarity").value;
@@ -95,6 +101,7 @@
         document.getElementById("invDeselectAllBtn").style.display = "none";
       }
 
+      // Filtering logic: Name matches, Rarity match, Ownership match
       const filterFn = (typeVal, item) => {
         if (search && !t(item.name).toLowerCase().includes(search) && !item.name.toLowerCase().includes(search)) return false;
         if (rarity && item.rarity !== rarity) return false;
@@ -108,6 +115,7 @@
       const clsEl = document.getElementById("ownedClasses");
       const agEl = document.getElementById("ownedAg");
 
+      // Build HTML output for the Classes list
       clsEl.innerHTML = fClasses.length ? fClasses.map(c => {
         const k = ownedKey("class", c.id);
         const o = invCache.owned.get(k);
@@ -158,6 +166,7 @@
         `;
       }).join("") : `<small class="muted">${t("Nothing found")}</small>`;
 
+      // Build HTML output for the Agathions list
       agEl.innerHTML = fAgs.length ? fAgs.map(a => {
         const k = ownedKey("agathion", a.id);
         const o = invCache.owned.get(k);
@@ -219,12 +228,14 @@
       }).join("") : `<small class="muted">${t("Nothing found")}</small>`;
     }
 
+    // Triggers when a checkbox is clicked: saves status and updates view
     window.toggleOwned = async (req_type, req_id, owned) => {
       await apiSend("/api/owned/set", "POST", { req_type, req_id, owned });
       await fetchOwned();
       renderInventory();
     };
 
+    // Triggers bulk selection using the endpoint created in the backend
     window.bulkSetOwned = async (ownedStatus) => {
       const rarity = document.getElementById("invRarity").value;
       if (!rarity) return;
@@ -237,6 +248,7 @@
       renderInventory();
     };
 
+    // Triggers when a number input (upgrade level) changes for a class
     window.setLevelsClass = async (id) => {
       const ascEl = document.getElementById(`clsAsc_${id}`);
       const elvEl = document.getElementById(`clsElv_${id}`);
@@ -258,6 +270,7 @@
       renderInventory();
     };
 
+    // Triggers when a number input (upgrade level) changes for an agathion
     window.setLevelsAg = async (id) => {
       const meldEl = document.getElementById(`agMeld_${id}`);
       const elvEl = document.getElementById(`agElv_${id}`);
@@ -281,6 +294,7 @@
       renderInventory();
     };
 
+    // Ask user for confirmation to clear their whole inventory DB
     window.clearOwned = async () => {
       if (confirm(t("Are you sure you want to clear your inventory?"))) {
         await apiSend("/api/owned", "DELETE");
@@ -289,6 +303,7 @@
       }
     };
 
+    // Page initialization block
     (async () => {
       await mountNav();
 

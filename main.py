@@ -19,6 +19,7 @@ DB_PATH = str(APP_DIR / "app.db")
 OWNED_DB_PATH = str(APP_DIR / "owned.db")
 STATIC_DIR = APP_DIR / "static"
 
+# Initialize the FastAPI application
 app = FastAPI(title="Classes/Agathions Collections Tracker")
 
 # Serve /static/*
@@ -48,15 +49,18 @@ def validate_agathion_rarity(r: str) -> None:
         raise HTTPException(status_code=400, detail=f"Invalid agathion rarity: {r}")
 
 def db_connect() -> sqlite3.Connection:
+    # Connect to the main application database containing static game data
     conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
 
     # Подключаем пользовательскую базу данных
+    # Attach the user's personal inventory database as a separate schema ('user_db')
     owned_path_str = OWNED_DB_PATH.replace("\\", "/")
     conn.execute(f"ATTACH DATABASE '{owned_path_str}' AS user_db;")
 
     return conn
 
+# Dependency generator to provide a database connection for API routes
 def get_db() -> Iterator[sqlite3.Connection]:
     conn = db_connect()
     try:
@@ -64,8 +68,10 @@ def get_db() -> Iterator[sqlite3.Connection]:
     finally:
         conn.close()
 
+# Database initialization: creates tables if they don't exist
 def db_init() -> None:
     conn = db_connect()
+    # Create tables for game data in the main database
     conn.executescript(
         """
         PRAGMA journal_mode=WAL;
@@ -111,6 +117,7 @@ def db_init() -> None:
         );
         """
     )
+    # Create the personal inventory table in the attached user database
     conn.executescript(
         """
         PRAGMA user_db.journal_mode=WAL;
@@ -155,6 +162,7 @@ class BonusTyped(BaseModel):
 BonusValue = Union[float, int, str, dict, BonusTyped]
 BonusDict = Dict[str, BonusValue]
 
+# Function to convert different formats of collection bonuses into a unified standard
 def normalize_bonus(bonus: Any) -> Dict[str, Any]:
     """
     Accepts:
@@ -232,6 +240,7 @@ def normalize_bonus(bonus: Any) -> Dict[str, Any]:
 # Pydantic models
 # -----------------------------------------------------------------------------
 
+# Pydantic models are used to validate incoming JSON requests and format outgoing API responses.
 class ClassIn(BaseModel):
     name: str
     rarity: str
@@ -338,6 +347,7 @@ class FinderResultOut(BaseModel):
 # Routes: Pages
 # -----------------------------------------------------------------------------
 
+# Endpoints to serve the raw HTML files to the browser
 @app.get("/")
 def page_index():
     return FileResponse(str(STATIC_DIR / "index.html"))
@@ -359,6 +369,7 @@ def page_finder():
 # Routes: Classes & Agathions
 # -----------------------------------------------------------------------------
 
+# Get a list of all classes from the database
 @app.get("/api/classes", response_model=List[ClassOut])
 def api_list_classes(conn: sqlite3.Connection = Depends(get_db)):
     rows = conn.execute(
@@ -375,6 +386,7 @@ def api_list_classes(conn: sqlite3.Connection = Depends(get_db)):
         for r in rows
     ]
 
+# Update an existing class by ID
 @app.put("/api/classes/{class_id}", response_model=ClassOut)
 def api_update_class(class_id: int, payload: ClassIn, conn: sqlite3.Connection = Depends(get_db)):
     name = normalize_name(payload.name)
@@ -399,6 +411,7 @@ def api_update_class(class_id: int, payload: ClassIn, conn: sqlite3.Connection =
         can_ascend=bool(row["can_ascend"]), can_elevate=bool(row["can_elevate"])
     )
 
+# Add a new class to the database
 @app.post("/api/classes", response_model=ClassOut)
 def api_create_class(payload: ClassIn, conn: sqlite3.Connection = Depends(get_db)):
     name = normalize_name(payload.name)
@@ -430,6 +443,7 @@ def api_create_class(payload: ClassIn, conn: sqlite3.Connection = Depends(get_db
         can_elevate=bool(row["can_elevate"]),
     )
 
+# Delete a class and clean up references from collections and user inventory
 @app.delete("/api/classes/{class_id}", response_model=Dict[str, Any])
 def api_delete_class(class_id: int, conn: sqlite3.Connection = Depends(get_db)):
     conn.execute("DELETE FROM classes WHERE id=?;", (class_id,))
@@ -519,6 +533,7 @@ def api_delete_agathion(ag_id: int, conn: sqlite3.Connection = Depends(get_db)):
     conn.commit()
     return {"ok": True}
 
+# Provide metadata to the frontend (available rarities, bonus types, etc.)
 @app.get("/api/meta")
 def api_meta():
     return {
@@ -533,6 +548,7 @@ def api_meta():
 # Routes: Collections & Requirements
 # -----------------------------------------------------------------------------
 
+# Helper function to fetch a collection and its item requirements by ID
 def _load_collection(conn: sqlite3.Connection, collection_id: int) -> CollectionOut:
     c = conn.execute(
         "SELECT id, name, bonus_json FROM collections WHERE id=?;",
@@ -678,6 +694,7 @@ def api_create_collection(payload: CollectionCreate, conn: sqlite3.Connection = 
     out = _load_collection(conn, col_id)
     return out
 
+# Delete a collection completely
 @app.delete("/api/collections/{collection_id}", response_model=Dict[str, Any])
 def api_delete_collection(collection_id: int, conn: sqlite3.Connection = Depends(get_db)):
     conn.execute("DELETE FROM collections WHERE id=?;", (collection_id,))
@@ -756,6 +773,7 @@ def api_delete_requirement(req_row_id: int, conn: sqlite3.Connection = Depends(g
 # Routes: Owned (inventory)
 # -----------------------------------------------------------------------------
 
+# Fetch the user's current inventory from the personal database
 @app.get("/api/owned", response_model=List[OwnedRowOut])
 def api_list_owned(conn: sqlite3.Connection = Depends(get_db)):
     rows = conn.execute(
@@ -778,6 +796,7 @@ def api_list_owned(conn: sqlite3.Connection = Depends(get_db)):
         for r in rows
     ]
 
+# Toggle an item's owned state (add or remove from inventory)
 @app.post("/api/owned/set", response_model=Dict[str, Any])
 def api_owned_set(payload: OwnedSetIn, conn: sqlite3.Connection = Depends(get_db)):
     # Validate existence
@@ -808,6 +827,7 @@ def api_owned_set(payload: OwnedSetIn, conn: sqlite3.Connection = Depends(get_db
     conn.commit()
     return {"ok": True}
 
+# Toggle the ownership of all items of a specific rarity at once
 @app.post("/api/owned/set_bulk", response_model=Dict[str, Any])
 def api_owned_set_bulk(payload: OwnedSetBulkIn, conn: sqlite3.Connection = Depends(get_db)):
     if payload.req_type == "class":
@@ -839,6 +859,7 @@ def api_owned_set_bulk(payload: OwnedSetBulkIn, conn: sqlite3.Connection = Depen
     conn.commit()
     return {"ok": True, "updated": len(rows)}
 
+# Update the specific upgrade levels (ascend, elevate, etc.) of an owned item
 @app.post("/api/owned/levels", response_model=Dict[str, Any])
 def api_owned_levels(payload: OwnedLevelsIn, conn: sqlite3.Connection = Depends(get_db)):
     exists = conn.execute(
@@ -884,6 +905,7 @@ def api_owned_clear(conn: sqlite3.Connection = Depends(get_db)):
 # Routes: Finder
 # -----------------------------------------------------------------------------
 
+# Helper to fetch the actual name of an item based on its ID
 def _name_by_req(conn: sqlite3.Connection, req_type: str, req_id: int) -> str:
     if req_type == "class":
         r = conn.execute("SELECT name FROM classes WHERE id=?;", (req_id,)).fetchone()
@@ -902,6 +924,7 @@ def _bonus_get(bonus: Dict[str, Any], stat: str) -> Optional[Any]:
     # stat key normalized
     return bonus.get(stat)
 
+# Returns a unique list of all stats currently available in the database
 @app.get("/api/stats", response_model=List[str])
 def api_stats(conn: sqlite3.Connection = Depends(get_db)):
     rows = conn.execute("SELECT bonus_json FROM collections;").fetchall()
@@ -916,6 +939,7 @@ def api_stats(conn: sqlite3.Connection = Depends(get_db)):
                 pass
     return sorted(list(stats))
 
+# Main endpoint for the Finder logic: calculates unlocked and missing items for a specific stat
 @app.get("/api/finder", response_model=List[FinderResultOut])
 def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
     stat_key = normalize_name(stat)
@@ -924,7 +948,7 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
 
     collections = conn.execute("SELECT id, name, bonus_json FROM collections ORDER BY name;").fetchall()
 
-    # cache owned
+    # Cache the user's inventory to quickly check against requirements
     owned_rows = conn.execute(
         """
         SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize
@@ -935,6 +959,7 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
 
     out: List[FinderResultOut] = []
 
+    # Iterate over all collections and see which ones provide the requested stat
     for c in collections:
         bonus = json.loads(c["bonus_json"]) if c["bonus_json"] else {}
         provides = _bonus_get(bonus, stat_key)
@@ -972,6 +997,7 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
             need_ae = int(r["min_ag_elevate"])
             need_as = int(r["min_ag_spiritualize"])
 
+            # Evaluate if the user's current inventory meets the specific requirement
             ok = True
             if have is None:
                 ok = False
@@ -1155,6 +1181,7 @@ def api_export(conn: sqlite3.Connection = Depends(get_db)) -> ExportPayload:
         owned=export_owned,
     )
 
+# Full database import endpoint: recreates the DB structure based on provided JSON
 @app.post("/api/import", response_model=Dict[str, Any])
 def api_import(payload: ExportPayload, conn: sqlite3.Connection = Depends(get_db)) -> Dict[str, Any]:
     if payload.version != 1:
