@@ -1,6 +1,6 @@
 # Lineage 2M Collections Tracker
 
-*[🇷🇺 Читать на русском (Read in Russian)](README_ru.md)*
+*[Читать на русском (Read in Russian)](README_ru.md)*
 
 A lightweight, local web application designed to help Lineage 2M players track their Classes, Agathions, and Collections. Built with Python (FastAPI) and vanilla HTML/JS/CSS, it provides a fast and responsive interface with a dark fantasy aesthetic.
 
