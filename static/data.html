@@ -19,6 +19,7 @@
     <button id="exportBtn">Export JSON</button>
     <input id="importFile" type="file" accept="application/json" />
     <button id="importBtn">Import JSON</button>
+    <button id="checkMissingBtn" style="margin-left:auto;"></button>
   </div>
   <div id="importExportStatus" style="margin-top:10px;"></div>
 </div>
@@ -558,6 +559,29 @@ document.getElementById("importBtn").onclick = async () => {
   await refreshAll();
 };
 
+document.getElementById("checkMissingBtn").onclick = async () => {
+  const res = await apiGet("/api/missing_translations");
+  if (res.error) {
+    alert(res.error);
+    return;
+  }
+  
+  const formatJsonLines = (arr) => arr.map(x => `  ${JSON.stringify(x)}: ${JSON.stringify(x)},`).join("\n");
+  let out = "";
+  if (res.Classes.length) out += `  "_new_classes_": "---",\n` + formatJsonLines(res.Classes) + "\n\n";
+  if (res.Agathions.length) out += `  "_new_agathions_": "---",\n` + formatJsonLines(res.Agathions) + "\n\n";
+  if (res.Stats.length) out += `  "_new_stats_": "---",\n` + formatJsonLines(res.Stats) + "\n\n";
+
+  if (!out) {
+    document.getElementById("importExportStatus").innerHTML = `<span class="pill" style="background:#10b981; color:#fff;">${t("All items are already translated!")}</span>`;
+  } else {
+    document.getElementById("importExportStatus").innerHTML = `
+      <p><small class="muted">Скопируйте нужные строки и вставьте их в файл ru.json в соответствующие группы:</small></p>
+      <textarea style="width:100%; height:150px; background:#1f2a37; color:#e5e7eb; border:1px solid #374151; border-radius:6px; padding:8px; font-family:monospace; margin-top:8px;">${escapeHtml(out.trim())}</textarea>
+    `;
+  }
+};
+
     (async () => {
       await mountNav();
 
@@ -591,6 +615,7 @@ document.getElementById("importBtn").onclick = async () => {
       document.getElementById("createColBtn").textContent = t("Create collection");
       document.getElementById("cancelColBtn").textContent = t("Cancel");
       document.getElementById("refreshColsBtn").textContent = t("Update list");
+      document.getElementById("checkMissingBtn").textContent = t("Check missing translations");
 
       document.getElementById("bonusStatName").placeholder = t("Stat name");
       document.getElementById("bonusStatValue").placeholder = t("Value");

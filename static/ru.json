@@ -134,6 +134,8 @@
     "Import JSON": "Импортировать JSON",
     "Export Owned JSON": "Экспортировать инвентарь (JSON)",
     "Import Owned JSON": "Импортировать инвентарь (JSON)",
+    "Check missing translations": "Найти пустые переводы",
+    "All items are already translated!": "Все предметы уже переведены!",
     "Clear inventory": "Очистить инвентарь",
     "Are you sure you want to clear your inventory?": "Вы уверены, что хотите полностью очистить инвентарь?",
     "Already exists": "Уже существует",

@@ -1051,6 +1051,41 @@ def api_finder(stat: str = "", conn: sqlite3.Connection = Depends(get_db)):
 # Import / Export
 # -----------------------------------------------------------------------------
 
+@app.get("/api/missing_translations")
+def api_missing_translations(conn: sqlite3.Connection = Depends(get_db)):
+    ru_path = STATIC_DIR / "ru.json"
+    if not ru_path.exists():
+        return {"error": "ru.json not found"}
+    
+    with open(ru_path, "r", encoding="utf-8") as f:
+        try:
+            ru_data = json.load(f)
+        except Exception:
+            return {"error": "Failed to parse ru.json"}
+
+    classes = [r["name"] for r in conn.execute("SELECT name FROM classes;").fetchall()]
+    agathions = [r["name"] for r in conn.execute("SELECT name FROM agathions;").fetchall()]
+    
+    stats = set()
+    for r in conn.execute("SELECT bonus_json FROM collections;").fetchall():
+        if r["bonus_json"]:
+            try:
+                data = json.loads(r["bonus_json"])
+                if isinstance(data, dict):
+                    stats.update(data.keys())
+            except Exception:
+                pass
+
+    missing_classes = [c for c in classes if c not in ru_data]
+    missing_agathions = [a for a in agathions if a not in ru_data]
+    missing_stats = [s for s in stats if s not in ru_data]
+
+    return {
+        "Classes": missing_classes,
+        "Agathions": missing_agathions,
+        "Stats": sorted(list(missing_stats))
+    }
+
 class ExportCollectionReq(BaseModel):
     req_type: Literal["class", "agathion"]
     name: str
