@@ -17,9 +17,9 @@
 
     <div class="card">
       <div class="row">
-        <a class="pill" href="/data">${t("→ Data")}</a>
-        <a class="pill" href="/inventory">${t("→ My Items")}</a>
-        <a class="pill" href="/finder">→ Finder</a>
+        <a class="pill" id="link-data" href="/data"></a>
+        <a class="pill" id="link-inv" href="/inventory"></a>
+        <a class="pill" id="link-fnd" href="/finder"></a>
       </div>
     </div>
   </main>
@@ -29,7 +29,10 @@
     (async () => {
       await mountNav();
       document.getElementById("main-title").textContent = t("Local collection tracker");
-      document.getElementById("main-desc").textContent = t("Go to 'Data'...");
+      document.getElementById("main-desc").textContent = t("In the 'Data' section, you can add missing classes/agathions and collections. In the 'My Items' section, mark everything your character owns from classes and agathions. Then, in the 'Finder' section, you can search for missing collections by desired stats.");
+      document.getElementById("link-data").textContent = t("→ Data");
+      document.getElementById("link-inv").textContent = t("→ My Items");
+      document.getElementById("link-fnd").textContent = t("→ Finder");
     })();
   </script>
 </body>

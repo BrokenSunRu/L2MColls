@@ -122,7 +122,7 @@
     "My Items": "Моё",
     "Stat Finder": "Поиск статов",
     "Local collection tracker": "Локальный трекер коллекций",
-    "Go to 'Data'...": "Иди в “Данные”, занеси классы/агатионы и коллекции. Потом в “Моё” отметь что есть, а в “Finder” ищи статы.",
+    "In the 'Data' section, you can add missing classes/agathions and collections. In the 'My Items' section, mark everything your character owns from classes and agathions. Then, in the 'Finder' section, you can search for missing collections by desired stats.": "В разделе “Данные” можно занести недостающие классы/агатионы и коллекции. В разделе “Моё” нужно отметить всё, что есть у персонажа из классов и агатионов, после в разделе “Finder” можно искать недостающие коллекции по желаемым для улучшения статам.",
     "→ Data": "→ Данные",
     "→ My Items": "→ Моё",
     "→ Finder": "→ Finder",
