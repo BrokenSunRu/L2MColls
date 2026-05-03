@@ -185,6 +185,8 @@
     "Item points = sum of available upgrades": "Очки предмета = сумма доступных улучшений",
     "This agathion has no upgrades": "У этого агатиона нет улучшений",
     "Nothing found": "Ничего не найдено",
+    "Select all by rarity": "Выбрать все этой редкости",
+    "Deselect all by rarity": "Убрать все этой редкости",
 
     "_finder_page_": "'Finder' page",
     "Enter stat key...": "Введи имя стата или выберите из списка ниже...",

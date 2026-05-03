@@ -455,7 +455,12 @@
       const url = editState.classId ? `/api/classes/${editState.classId}` : "/api/classes";
       await apiSend(url, method, { name, rarity, can_ascend, can_elevate });
 
-      document.getElementById("cancelClassBtn").onclick();
+      if (editState.classId) {
+        document.getElementById("cancelClassBtn").onclick();
+      } else {
+        document.getElementById("className").value = "";
+        document.getElementById("className").focus();
+      }
       await refreshAll();
     };
 
@@ -471,7 +476,12 @@
       const url = editState.agId ? `/api/agathions/${editState.agId}` : "/api/agathions";
       await apiSend(url, method, { name, rarity, can_meld, can_elevate, can_spiritualize });
 
-      document.getElementById("cancelAgBtn").onclick();
+      if (editState.agId) {
+        document.getElementById("cancelAgBtn").onclick();
+      } else {
+        document.getElementById("agName").value = "";
+        document.getElementById("agName").focus();
+      }
       await refreshAll();
     };
 

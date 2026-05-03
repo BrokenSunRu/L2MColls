@@ -272,6 +272,11 @@ class OwnedSetIn(BaseModel):
     req_id: int
     owned: bool
 
+class OwnedSetBulkIn(BaseModel):
+    req_type: Literal["class", "agathion"]
+    rarity: str
+    owned: bool
+
 class OwnedLevelsIn(BaseModel):
     req_type: Literal["class", "agathion"]
     req_id: int
@@ -783,6 +788,37 @@ def api_owned_set(payload: OwnedSetIn, conn: sqlite3.Connection = Depends(get_db
 
     conn.commit()
     return {"ok": True}
+
+@app.post("/api/owned/set_bulk", response_model=Dict[str, Any])
+def api_owned_set_bulk(payload: OwnedSetBulkIn, conn: sqlite3.Connection = Depends(get_db)):
+    if payload.req_type == "class":
+        validate_class_rarity(payload.rarity)
+        table = "classes"
+    else:
+        validate_agathion_rarity(payload.rarity)
+        table = "agathions"
+
+    rows = conn.execute(f"SELECT id FROM {table} WHERE rarity=?;", (payload.rarity,)).fetchall()
+
+    if payload.owned:
+        for r in rows:
+            conn.execute(
+                """
+                INSERT INTO owned(req_type, req_id)
+                VALUES (?,?)
+                ON CONFLICT(req_type, req_id) DO NOTHING;
+                """,
+                (payload.req_type, r["id"]),
+            )
+    else:
+        for r in rows:
+            conn.execute(
+                "DELETE FROM owned WHERE req_type=? AND req_id=?;",
+                (payload.req_type, r["id"]),
+            )
+
+    conn.commit()
+    return {"ok": True, "updated": len(rows)}
 
 @app.post("/api/owned/levels", response_model=Dict[str, Any])
 def api_owned_levels(payload: OwnedLevelsIn, conn: sqlite3.Connection = Depends(get_db)):
