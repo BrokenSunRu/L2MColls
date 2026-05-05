@@ -22,9 +22,17 @@
       </div>
     </div>
 
-    <div class="card" id="recommendationsCard">
-      <h2 id="fnd-recommend-h2"></h2>
-      <div id="recommendList"></div>
+    <div class="card" id="mainTabsCard">
+      <div class="tabs" style="display:flex; border-bottom:1px solid #374151; margin-bottom:16px;">
+        <button id="tabTopUpgrades" class="tab-btn" style="flex:1; padding:10px; background:none; border:none; border-bottom:2px solid #3b82f6; color:var(--text); cursor:pointer; font-weight:bold;"></button>
+        <button id="tabEasiest" class="tab-btn" style="flex:1; padding:10px; background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); cursor:pointer; font-weight:bold;"></button>
+      </div>
+      <div id="tabContentTopUpgrades">
+        <div id="topUpgradesList"></div>
+      </div>
+      <div id="tabContentEasiest" style="display:none;">
+        <div id="recommendList"></div>
+      </div>
     </div>
 
     <div class="card" id="openedCard" style="display:none;">
@@ -181,6 +189,37 @@
       }).join("");
     }
 
+    function renderTopUpgrades(items) {
+      if (!items || items.length === 0) return `<small class="muted">${t("Nothing found")}</small>`;
+      return items.map(x => {
+        const bonusesHtml = Object.entries(x.bonuses).map(([k, v]) => {
+          return `<span class="pill" style="margin-bottom:4px; display:inline-block;">${escapeHtml(t(k))}: +${escapeHtml(formatProvides(v))}</span>`;
+        }).join(" ");
+        
+        let actionText = x.action;
+        if (actionText === "acquire") actionText = t("Acquire");
+        else if (actionText === "ascend") actionText = t("Ascend");
+        else if (actionText === "elevate" || actionText === "elevate_ag") actionText = t("Elevate");
+        else if (actionText === "meld") actionText = t("Meld");
+        else if (actionText === "spiritualize") actionText = t("Spiritualize");
+
+        const imgName = x.name.toLowerCase().replace(/\s+/g, '_');
+        
+        return `
+        <div class="card" style="margin-bottom:8px; display:flex; gap:12px; align-items:center;">
+          <img src="/static/pics/${escapeHtml(imgName)}.png" style="width:64px; height:auto; border-radius:6px; object-fit:contain;" onerror="this.style.display='none'" />
+          <div style="flex:1;">
+            <div class="row" style="justify-content:space-between;">
+              <div><b><span style="color: ${getRarityColor(x.rarity)};">${escapeHtml(t(x.rarity))}</span> ${escapeHtml(t(x.req_type))}: ${escapeHtml(t(x.name))}</b></div>
+              <div class="pill" style="background:#3b82f6; color:#fff;">${t("Unlocks collections:")} ${x.collections_count}</div>
+            </div>
+            <div style="margin-top:8px;"><span class="pill" style="background:#1f2a37; border:1px solid #4b5563;">${t("Action")}: <b style="color:#10b981;">${escapeHtml(actionText)}</b></span></div>
+            <div style="margin-top:8px;">${bonusesHtml}</div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
     // Fetches search results and splits them into "opened" and "missing" arrays to render
     async function run() {
       const stat = document.getElementById("stat").value.trim();
@@ -199,11 +238,11 @@
       if (!stat) {
         document.getElementById("openedCard").style.display = "none";
         document.getElementById("missingCard").style.display = "none";
-        document.getElementById("recommendationsCard").style.display = "block";
+        document.getElementById("mainTabsCard").style.display = "block";
         return;
       }
       
-      document.getElementById("recommendationsCard").style.display = "none";
+      document.getElementById("mainTabsCard").style.display = "none";
       document.getElementById("openedCard").style.display = "block";
       document.getElementById("missingCard").style.display = "block";
       
@@ -252,8 +291,12 @@
     }
 
     async function loadRecommendations() {
-      const res = await apiGet("/api/recommend");
-      document.getElementById("recommendList").innerHTML = renderRecommendations(res);
+      const [recRes, topRes] = await Promise.all([
+        apiGet("/api/recommend"),
+        apiGet("/api/top_upgrades")
+      ]);
+      document.getElementById("recommendList").innerHTML = renderRecommendations(recRes);
+      document.getElementById("topUpgradesList").innerHTML = renderTopUpgrades(topRes);
     }
 
     (async () => {
@@ -265,7 +308,26 @@
       document.getElementById("fnd-avail-desc").textContent = t("Available stats in DB:");
       document.getElementById("fnd-opened-h2").textContent = t("Collections already unlocked");
       document.getElementById("fnd-missing-h2").textContent = t("Collections that give this stat but are not unlocked");
-      document.getElementById("fnd-recommend-h2").textContent = t("Easiest collections to complete");
+      
+      document.getElementById("tabTopUpgrades").textContent = t("Top 10 upgrades");
+      document.getElementById("tabEasiest").textContent = t("Easiest collections");
+
+      document.getElementById("tabTopUpgrades").onclick = () => {
+        document.getElementById("tabTopUpgrades").style.borderColor = "#3b82f6";
+        document.getElementById("tabTopUpgrades").style.color = "var(--text)";
+        document.getElementById("tabEasiest").style.borderColor = "transparent";
+        document.getElementById("tabEasiest").style.color = "var(--muted)";
+        document.getElementById("tabContentTopUpgrades").style.display = "block";
+      };
+
+      document.getElementById("tabEasiest").onclick = () => {
+        document.getElementById("tabEasiest").style.borderColor = "#3b82f6";
+        document.getElementById("tabEasiest").style.color = "var(--text)";
+        document.getElementById("tabTopUpgrades").style.borderColor = "transparent";
+        document.getElementById("tabTopUpgrades").style.color = "var(--muted)";
+        document.getElementById("tabContentEasiest").style.display = "block";
+        document.getElementById("tabContentTopUpgrades").style.display = "none";
+      };
 
       await loadStats();
       await loadRecommendations();

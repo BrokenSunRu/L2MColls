@@ -335,6 +335,15 @@ class FinderResultReq(BaseModel):
     have_ag_elevate: int = 0
     have_ag_spiritualize: int = 0
 
+class TopUpgradeOut(BaseModel):
+    req_type: Literal["class", "agathion"]
+    req_id: int
+    name: str
+    rarity: str
+    action: str
+    collections_count: int
+    bonuses: Dict[str, Any]
+
 class FinderResultOut(BaseModel):
     collection_id: int
     collection_name: str
@@ -1157,6 +1166,89 @@ def api_recommend(conn: sqlite3.Connection = Depends(get_db)):
     results.sort(key=lambda x: x[0])
     return [x[1] for x in results[:10]]
 
+@app.get("/api/top_upgrades", response_model=List[TopUpgradeOut])
+def api_top_upgrades(conn: sqlite3.Connection = Depends(get_db)):
+    collections = conn.execute("SELECT id, name, bonus_json FROM collections ORDER BY name;").fetchall()
+    
+    owned_rows = conn.execute("SELECT req_type, req_id, class_ascend, class_elevate, ag_meld, ag_elevate, ag_spiritualize FROM user_db.owned;").fetchall()
+    owned_map = {f"{r['req_type']}:{r['req_id']}": r for r in owned_rows}
+    
+    req_rows = conn.execute("SELECT collection_id, req_type, req_id, min_class_ascend, min_class_elevate, min_ag_meld, min_ag_elevate, min_ag_spiritualize FROM collection_requirements;").fetchall()
+    
+    col_reqs = {}
+    for r in req_rows:
+        cid = r["collection_id"]
+        if cid not in col_reqs:
+            col_reqs[cid] = []
+        col_reqs[cid].append(r)
+        
+    upgrades = {}
+    
+    for c in collections:
+        cid = c["id"]
+        bonus = json.loads(c["bonus_json"]) if c["bonus_json"] else {}
+        reqs = col_reqs.get(cid, [])
+        
+        total_dist = 0
+        missing_step = None
+        
+        for r in reqs:
+            key = f"{r['req_type']}:{r['req_id']}"
+            have = owned_map.get(key)
+            
+            need_ca = int(r["min_class_ascend"])
+            need_ce = int(r["min_class_elevate"])
+            need_am = int(r["min_ag_meld"])
+            need_ae = int(r["min_ag_elevate"])
+            need_as = int(r["min_ag_spiritualize"])
+            
+            if not have:
+                req_dist = 1 + need_ca + need_ce + need_am + need_ae + need_as
+                total_dist += req_dist
+                if req_dist == 1:
+                    missing_step = (r["req_type"], int(r["req_id"]), "acquire")
+            else:
+                diff_ca = max(0, need_ca - int(have["class_ascend"]))
+                diff_ce = max(0, need_ce - int(have["class_elevate"]))
+                diff_am = max(0, need_am - int(have["ag_meld"]))
+                diff_ae = max(0, need_ae - int(have["ag_elevate"]))
+                diff_as = max(0, need_as - int(have["ag_spiritualize"]))
+                
+                req_dist = diff_ca + diff_ce + diff_am + diff_ae + diff_as
+                total_dist += req_dist
+                
+                if req_dist == 1:
+                    if diff_ca == 1: missing_step = (r["req_type"], int(r["req_id"]), "ascend")
+                    elif diff_ce == 1: missing_step = (r["req_type"], int(r["req_id"]), "elevate")
+                    elif diff_am == 1: missing_step = (r["req_type"], int(r["req_id"]), "meld")
+                    elif diff_ae == 1: missing_step = (r["req_type"], int(r["req_id"]), "elevate_ag")
+                    elif diff_as == 1: missing_step = (r["req_type"], int(r["req_id"]), "spiritualize")
+        
+        if total_dist == 1 and missing_step:
+            sk = f"{missing_step[0]}:{missing_step[1]}:{missing_step[2]}"
+            if sk not in upgrades:
+                name, rarity = _info_by_req(conn, missing_step[0], missing_step[1])
+                upgrades[sk] = {
+                    "req_type": missing_step[0],
+                    "req_id": missing_step[1],
+                    "name": name,
+                    "rarity": rarity,
+                    "action": missing_step[2],
+                    "collections_count": 0,
+                    "bonuses": {}
+                }
+            
+            upgrades[sk]["collections_count"] += 1
+            
+            for bk, bv in bonus.items():
+                val = bv["value"] if isinstance(bv, dict) else bv
+                typ = bv["type"] if isinstance(bv, dict) else "flat"
+                if bk not in upgrades[sk]["bonuses"]:
+                    upgrades[sk]["bonuses"][bk] = {"value": 0.0, "type": typ}
+                upgrades[sk]["bonuses"][bk]["value"] += val
+                
+    sorted_upgrades = sorted(upgrades.values(), key=lambda x: (-x["collections_count"], -len(x["bonuses"]), x["name"]))
+    return sorted_upgrades[:10]
 
 # -----------------------------------------------------------------------------
 # Import / Export
