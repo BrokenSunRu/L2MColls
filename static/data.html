@@ -409,9 +409,15 @@
 
     // Refreshes the local component cache (classes, ags, options) from server
     async function refreshAll() {
+      const prevClassRarity = document.getElementById("classRarity").value;
+      const prevAgRarity = document.getElementById("agRarity").value;
+
       metaCache = await apiGet("/api/meta");
       document.getElementById("classRarity").innerHTML = metaCache.class_rarities.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(t(x))}</option>`).join("");
       document.getElementById("agRarity").innerHTML = metaCache.agathion_rarities.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(t(x))}</option>`).join("");
+
+      if (prevClassRarity) document.getElementById("classRarity").value = prevClassRarity;
+      if (prevAgRarity) document.getElementById("agRarity").value = prevAgRarity;
 
       cache.classes = await apiGet("/api/classes");
       cache.agathions = await apiGet("/api/agathions");
@@ -631,6 +637,20 @@ document.getElementById("checkMissingBtn").onclick = async () => {
       document.getElementById("searchClasses").oninput = updateClassesView;
       document.getElementById("searchAgathions").oninput = updateAgathionsView;
       document.getElementById("searchCollections").oninput = renderCollectionsView;
+
+      document.getElementById("className").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          document.getElementById("addClassBtn").click();
+        }
+      });
+
+      document.getElementById("agName").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          document.getElementById("addAgBtn").click();
+        }
+      });
 
       renderReqs();
       renderBonuses();
