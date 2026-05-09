@@ -16,6 +16,7 @@
         <input id="stat" list="statsDatalist" placeholder="STAT_KEY" style="min-width:320px;" />
         <datalist id="statsDatalist"></datalist>
         <button id="go"></button>
+        <button id="clearBtn" style="margin-left: 8px; display: none;" onclick="document.getElementById('stat').value=''; run();">✖</button>
       </div>
       <div style="margin-top:16px;">
         <small id="fnd-avail-desc" class="muted"></small>
@@ -37,13 +38,25 @@
     </div>
 
     <div class="card" id="openedCard" style="display:none;">
-      <h2 id="fnd-opened-h2"></h2>
-      <div id="opened"></div>
+      <div style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="toggleCard('opened-wrapper')">
+        <h2 id="fnd-opened-h2" style="margin-bottom: 4px; flex:1;"></h2>
+        <span id="opened-wrapper-icon" class="muted" style="margin-left:8px;">▼</span>
+      </div>
+      <div id="opened-wrapper">
+        <div id="fnd-opened-sums" style="margin-bottom: 12px;"></div>
+        <div id="opened"></div>
+      </div>
     </div>
 
     <div class="card" id="missingCard" style="display:none;">
-      <h2 id="fnd-missing-h2"></h2>
-      <div id="missing"></div>
+      <div style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="toggleCard('missing-wrapper')">
+        <h2 id="fnd-missing-h2" style="margin-bottom: 4px; flex:1;"></h2>
+        <span id="missing-wrapper-icon" class="muted" style="margin-left:8px;">▼</span>
+      </div>
+      <div id="missing-wrapper">
+        <div id="fnd-missing-sums" style="margin-bottom: 12px;"></div>
+        <div id="missing"></div>
+      </div>
     </div>
   </main>
 
@@ -87,47 +100,68 @@
       return p;
     }
 
-    // Sums up all the specific stat values across different collections
-    function sumProvides(items) {
-      let flat = 0, percent = 0;
+    function renderSumsHtml(items) {
+      const sums = {};
       items.forEach(x => {
-        let p = x.provides;
-        if (typeof p === 'object' && p !== null) {
-          if (p.type === 'percent') percent += Number(p.value);
-          else flat += Number(p.value);
-        } else {
-          flat += Number(p) || 0;
+        Object.entries(x.provides).forEach(([statName, p]) => {
+          if (!sums[statName]) sums[statName] = { flat: 0, percent: 0 };
+          if (typeof p === 'object' && p !== null) {
+            if (p.type === 'percent') sums[statName].percent += Number(p.value);
+            else sums[statName].flat += Number(p.value);
+          } else {
+            sums[statName].flat += Number(p) || 0;
+          }
+        });
+      });
+      
+      let parts = [];
+      Object.entries(sums).forEach(([stat, vals]) => {
+        let sub = [];
+        if (vals.flat !== 0) sub.push((vals.flat > 0 ? '+' : '') + parseFloat(vals.flat.toFixed(2)));
+        if (vals.percent !== 0) sub.push((vals.percent > 0 ? '+' : '') + parseFloat(vals.percent.toFixed(2)) + '%');
+        if (sub.length > 0) {
+           parts.push({ stat, text: `${escapeHtml(t(stat))}: ${sub.join(', ')}` });
         }
       });
-      let parts = [];
-      if (flat !== 0) parts.push((flat > 0 ? '+' : '') + parseFloat(flat.toFixed(2)));
-      if (percent !== 0) parts.push((percent > 0 ? '+' : '') + parseFloat(percent.toFixed(2)) + '%');
-      return parts.join(', ');
+      
+      if (parts.length === 0) return "";
+      return `<div style="font-size:0.85em; font-weight:500;">` + 
+             parts.map(p => `<span class="pill" style="background:transparent; border:1px solid currentColor; margin-right:4px; margin-bottom:4px; display:inline-block; cursor:pointer;" data-stat="${escapeHtml(p.stat)}" onclick="setStat(this.getAttribute('data-stat'))">${p.text}</span>`).join("") + 
+             `</div>`;
     }
 
     // Draws the HTML items list representing Collections that the user already completed
-    function renderOpened(items, stat) {
+    function renderOpened(items) {
       if (!items || items.length === 0) return `<small class="muted">${t("Nothing found")}</small>`;
-      return items.map(x => `
+      return items.map(x => {
+        const bonusesHtml = Object.entries(x.provides).map(([k, v]) => {
+          return `<span class="pill" style="background:#10b981; color:#fff; margin-bottom:4px; display:inline-block;">${escapeHtml(t(k))}: +${escapeHtml(formatProvides(v))}</span>`;
+        }).join(" ");
+        
+        return `
         <div class="card">
-          <div class="row" style="justify-content:space-between;">
-            <div><b>${escapeHtml(t(x.collection_name))}</b></div>
-            <div class="pill" style="background:#10b981; color:#fff;">
-              ${escapeHtml(t(stat))}: +${escapeHtml(formatProvides(x.provides))}
-            </div>
+          <div class="row" style="justify-content:space-between; align-items:flex-start;">
+            <div style="flex:1;"><b>${escapeHtml(t(x.collection_name))}</b></div>
+            <div style="text-align:right; max-width:60%;">${bonusesHtml}</div>
           </div>
         </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     // Draws the HTML items list representing Collections that the user has not completed yet
-    function renderMissing(items, stat) {
+    function renderMissing(items) {
       if (!items || items.length === 0) return `<small class="muted">${t("Nothing found")}</small>`;
-      return items.map(x => `
+      return items.map(x => {
+        const bonusesHtml = Object.entries(x.provides).map(([k, v]) => {
+          return `<span class="pill" style="margin-bottom:4px; display:inline-block;">${escapeHtml(t(k))}: +${escapeHtml(formatProvides(v))}</span>`;
+        }).join(" ");
+        
+        return `
         <div class="card">
-          <div class="row" style="justify-content:space-between;">
-            <div><b>${escapeHtml(t(x.collection_name))}</b></div>
-            <div class="pill">${escapeHtml(t(stat))}: +${escapeHtml(formatProvides(x.provides))}</div>
+          <div class="row" style="justify-content:space-between; align-items:flex-start;">
+            <div style="flex:1;"><b>${escapeHtml(t(x.collection_name))}</b></div>
+            <div style="text-align:right; max-width:60%;">${bonusesHtml}</div>
           </div>
 
           <div style="margin-top:10px;">
@@ -150,7 +184,8 @@
             </div>
           </div>
         </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     function renderRecommendations(items) {
@@ -223,28 +258,51 @@
 
     let availableStatsCache = [];
 
+    window.toggleCard = (id) => {
+      const content = document.getElementById(id);
+      const icon = document.getElementById(id + "-icon");
+      if (content.style.display === "none") {
+        content.style.display = "block";
+        icon.textContent = "▼";
+      } else {
+        content.style.display = "none";
+        icon.textContent = "▶";
+      }
+    };
+
     // Fetches search results and splits them into "opened" and "missing" arrays to render
     async function run() {
-      const statInput = document.getElementById("stat").value.trim();
-      let stat = statInput;
+      const rawInput = document.getElementById("stat").value;
+      const statInputs = rawInput.split(',').map(s => s.trim()).filter(Boolean);
       
-      if (statInput) {
+      if (rawInput.trim().length > 0) {
+        document.getElementById("clearBtn").style.display = "inline-block";
+      } else {
+        document.getElementById("clearBtn").style.display = "none";
+      }
+
+      let stats = [];
+      for (const sIn of statInputs) {
+        let found = sIn;
         for (const s of availableStatsCache) {
-          if (t(s).toLowerCase() === statInput.toLowerCase() || s.toLowerCase() === statInput.toLowerCase()) {
-            stat = s;
+          if (t(s).toLowerCase() === sIn.toLowerCase() || s.toLowerCase() === sIn.toLowerCase()) {
+            found = s;
             break;
           }
         }
+        if (!stats.includes(found)) stats.push(found);
       }
       
       let activePill = null;
+      const lastStat = stats.length > 0 ? stats[stats.length - 1] : null;
 
       // Подсвечиваем активный стат (кнопку), если он выбран
       document.querySelectorAll('.stat-pill').forEach(el => {
-        if (stat && el.getAttribute('data-stat') === stat) {
+        const elStat = el.getAttribute('data-stat');
+        if (stats.includes(elStat)) {
           el.style.background = '#3b82f6';
           el.style.color = '#ffffff';
-          activePill = el;
+          if (elStat === lastStat) activePill = el;
         } else {
           el.style.background = '';
           el.style.color = '';
@@ -255,7 +313,7 @@
         activePill.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
 
-      if (!stat) {
+      if (stats.length === 0) {
         document.getElementById("openedCard").style.display = "none";
         document.getElementById("missingCard").style.display = "none";
         document.getElementById("mainTabsCard").style.display = "block";
@@ -265,32 +323,68 @@
       document.getElementById("mainTabsCard").style.display = "none";
       document.getElementById("openedCard").style.display = "block";
       document.getElementById("missingCard").style.display = "block";
+
+      document.getElementById("opened-wrapper").style.display = "block";
+      document.getElementById("opened-wrapper-icon").textContent = "▼";
+      document.getElementById("missing-wrapper").style.display = "block";
+      document.getElementById("missing-wrapper-icon").textContent = "▼";
       
-      const res = await apiGet(`/api/finder?stat=${encodeURIComponent(stat)}`);
-      const opened = res.filter(x => x.unlocked);
-      const missing = res.filter(x => !x.unlocked);
+      const results = await Promise.all(stats.map(async (st) => {
+          const res = await apiGet(`/api/finder?stat=${encodeURIComponent(st)}`);
+          res.forEach(r => { r._statName = st; });
+          return res;
+      }));
+      const allRes = results.flat();
+
+      const mergedMap = new Map();
+      for (const item of allRes) {
+         if (!mergedMap.has(item.collection_id)) {
+             const cloned = { ...item, provides: { [item._statName]: item.provides } };
+             mergedMap.set(item.collection_id, cloned);
+         } else {
+             const existing = mergedMap.get(item.collection_id);
+             existing.provides[item._statName] = item.provides;
+         }
+      }
+      const mergedRes = Array.from(mergedMap.values());
+      mergedRes.sort((a, b) => {
+         if (a.missing.length !== b.missing.length) return a.missing.length - b.missing.length;
+         return a.collection_name.localeCompare(b.collection_name);
+      });
       
-      document.getElementById("opened").innerHTML = renderOpened(opened, stat);
-      document.getElementById("missing").innerHTML = renderMissing(missing, stat);
+      const opened = mergedRes.filter(x => x.unlocked);
+      const missing = mergedRes.filter(x => !x.unlocked);
+      
+      document.getElementById("opened").innerHTML = renderOpened(opened);
+      document.getElementById("missing").innerHTML = renderMissing(missing);
 
-      const openedSum = sumProvides(opened);
-      const missingSum = sumProvides(missing);
+      const openedSumsHtml = renderSumsHtml(opened);
+      const missingSumsHtml = renderSumsHtml(missing);
 
-      document.getElementById("fnd-opened-h2").innerHTML = escapeHtml(t("Collections already unlocked")) + 
-        (openedSum ? ` <span class="pill" style="font-size:0.65em; vertical-align:middle; background:transparent; border:1px solid #10b981; color:#10b981; margin-left:8px;">${t("Total")}: ${escapeHtml(openedSum)}</span>` : '');
+      document.getElementById("fnd-opened-h2").textContent = t("Collections already unlocked");
+      document.getElementById("fnd-opened-sums").innerHTML = openedSumsHtml ? `<div style="color:#10b981;">${openedSumsHtml}</div>` : '';
 
-      document.getElementById("fnd-missing-h2").innerHTML = escapeHtml(t("Collections that give this stat but are not unlocked")) + 
-        (missingSum ? ` <span class="pill" style="font-size:0.65em; vertical-align:middle; background:transparent; border:1px solid #3b82f6; color:#3b82f6; margin-left:8px;">${t("Total")}: ${escapeHtml(missingSum)}</span>` : '');
+      const missingTitle = stats.length > 1 
+        ? t("Collections that give these stats but are not unlocked") 
+        : t("Collections that give this stat but are not unlocked");
+      document.getElementById("fnd-missing-h2").textContent = missingTitle;
+      document.getElementById("fnd-missing-sums").innerHTML = missingSumsHtml ? `<div style="color:#3b82f6;">${missingSumsHtml}</div>` : '';
     }
 
     window.setStat = (s) => {
       const input = document.getElementById("stat");
       const translated = t(s);
-      if (input.value.trim() === translated || input.value.trim() === s) {
-        input.value = ""; // Если стат уже выбран — отжимаем
+      
+      let currentInputs = input.value.split(',').map(v => v.trim()).filter(Boolean);
+      const existingIndex = currentInputs.findIndex(v => v.toLowerCase() === translated.toLowerCase() || v.toLowerCase() === s.toLowerCase());
+      
+      if (existingIndex !== -1) {
+        currentInputs.splice(existingIndex, 1);
       } else {
-        input.value = translated; // Иначе — выбираем
+        currentInputs.push(translated);
       }
+      
+      input.value = currentInputs.join(", ");
       run();
     };
 
