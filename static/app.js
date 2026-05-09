@@ -129,6 +129,7 @@ function navHtml() {
       <a href="/inventory">${t("My Items")}</a>
       <a href="/finder">Finder</a>
       <span style="flex:1;"></span>
+      <span class="muted" style="margin-right: 16px; font-size: 0.9em; user-select: none;">v0.1.0</span>
       <button id="themeBtn" type="button">${theme === "light" ? "Light" : "Dark"}</button>
       <button id="langBtn" type="button" style="margin-left: 8px;">${currentLang === "en" ? "EN" : "RU"}</button>
     </nav>
