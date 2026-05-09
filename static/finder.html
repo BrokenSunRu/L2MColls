@@ -13,12 +13,13 @@
       <h1 id="fnd-h1"></h1>
       <p><small id="fnd-desc" class="muted"></small></p>
       <div class="row">
-        <input id="stat" placeholder="STAT_KEY" style="min-width:320px;" />
+        <input id="stat" list="statsDatalist" placeholder="STAT_KEY" style="min-width:320px;" />
+        <datalist id="statsDatalist"></datalist>
         <button id="go"></button>
       </div>
       <div style="margin-top:16px;">
         <small id="fnd-avail-desc" class="muted"></small>
-        <div id="availableStats" style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px;"></div>
+        <div id="availableStats" style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; max-height: 250px; overflow-y: auto; padding-right: 8px;"></div>
       </div>
     </div>
 
@@ -220,20 +221,39 @@
       }).join("");
     }
 
+    let availableStatsCache = [];
+
     // Fetches search results and splits them into "opened" and "missing" arrays to render
     async function run() {
-      const stat = document.getElementById("stat").value.trim();
+      const statInput = document.getElementById("stat").value.trim();
+      let stat = statInput;
       
+      if (statInput) {
+        for (const s of availableStatsCache) {
+          if (t(s).toLowerCase() === statInput.toLowerCase() || s.toLowerCase() === statInput.toLowerCase()) {
+            stat = s;
+            break;
+          }
+        }
+      }
+      
+      let activePill = null;
+
       // Подсвечиваем активный стат (кнопку), если он выбран
       document.querySelectorAll('.stat-pill').forEach(el => {
         if (stat && el.getAttribute('data-stat') === stat) {
           el.style.background = '#3b82f6';
           el.style.color = '#ffffff';
+          activePill = el;
         } else {
           el.style.background = '';
           el.style.color = '';
         }
       });
+
+      if (activePill) {
+        activePill.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
 
       if (!stat) {
         document.getElementById("openedCard").style.display = "none";
@@ -265,10 +285,11 @@
 
     window.setStat = (s) => {
       const input = document.getElementById("stat");
-      if (input.value.trim() === s) {
+      const translated = t(s);
+      if (input.value.trim() === translated || input.value.trim() === s) {
         input.value = ""; // Если стат уже выбран — отжимаем
       } else {
-        input.value = s; // Иначе — выбираем
+        input.value = translated; // Иначе — выбираем
       }
       run();
     };
@@ -276,14 +297,19 @@
     // Requests list of all available stat names from server and prints them as clickable tags
     async function loadStats() {
       const stats = await apiGet("/api/stats");
+      availableStatsCache = stats || [];
       const container = document.getElementById("availableStats");
+      const dl = document.getElementById("statsDatalist");
       if (!stats || stats.length === 0) {
         container.innerHTML = `<small class="muted">${t("No stats yet")}</small>`;
+        dl.innerHTML = "";
         return;
       }
       
       // Отсортируем статы с учетом текущего языка перед выводом
       sortTranslated(stats);
+
+      dl.innerHTML = stats.map(s => `<option value="${escapeHtml(t(s))}"></option>`).join("");
 
       container.innerHTML = stats.map(s => `
         <span class="pill stat-pill" data-stat="${escapeHtml(s)}" style="cursor:pointer; transition:0.2s;" onclick="setStat('${escapeHtml(s)}')">${escapeHtml(t(s))}</span>
