@@ -2,6 +2,8 @@
 
 *[Читать на русском (Read in Russian)](README_ru.md)*
 
+> **Note:** The database is currently far from complete. At the moment, all classes from Zenith down to Unique have been added, along with all collections for Zenith and Mythic classes, as well as for the Legend classes Sedrick and Priscilla. Work on agathions is yet to be done.
+
 A lightweight, local web application designed to help Lineage 2M players track their Classes, Agathions, and Collections. Built with Python (FastAPI) and vanilla HTML/JS/CSS, it provides a fast and responsive interface with a dark fantasy aesthetic.
 
 ## Core Features
